@@ -59,6 +59,10 @@ npm run build      # typecheck + production build to dist/
 npm run preview    # serve the production build
 ```
 
+## Deploying
+
+Every push to `main` runs [.github/workflows/deploy.yml](.github/workflows/deploy.yml). It runs the unit tests, builds the app and publishes `dist/` to GitHub Pages at `https://lonetitan01.github.io/DnD-Combat-Tracker/`. It can also be run by hand from the Actions tab. One-time setup: **Settings → Pages → Source → GitHub Actions**. Data lives in each browser's IndexedDB, so data from `localhost` doesn't carry over to the hosted copy. Use the bestiary's Export / Import to move stat blocks.
+
 ## Layout
 
 - `src/models/`: TypeScript types for every entity (templates, players, encounters, combats, combatants, log).
