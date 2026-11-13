@@ -4,7 +4,7 @@
 
 ## Status
 
-All seven milestones are built and tested, and v1 is feature-complete. 161 unit tests and 15 browser tests (Playwright, in Edge) cover the logic and every screen, including installing the app and using it offline. Next are the ideas under [Later ideas](#later-ideas).
+All seven milestones are built and tested, and v1 is feature-complete. 178 unit tests and 16 browser tests (Playwright, in Edge) cover the logic and every screen, including installing the app and using it offline. Next are the ideas under [Later ideas](#later-ideas).
 
 Where the build differs from the original plan, this document now describes what was built. Those changes are also listed under [Decisions and later ideas](#decisions-and-later-ideas).
 
@@ -24,11 +24,10 @@ Build a single-page web app that lets a DM prepare encounters ahead of time and 
 
 - Maps and grids
 - Dice-rolling animations
-- Multi-user sync
+- Multi-user sync (sharing with a co-DM). Syncing one DM's own devices through their Google account was added later as an option.
 - Importing the official SRD in bulk
 - Spell slot tracking
 - Desktop or mobile app wrappers
-- An immunity damage button
 
 ## Data model
 
@@ -178,6 +177,7 @@ Recommendation: a local-first browser app with no backend, so it works offline a
 | UI | React 19 + TypeScript, built with Vite 7; React Router 7 with hash routes (`#/bestiary`, `#/table`) | Typed models catch stat-block mistakes; fast dev loop. Hash routes work on static hosting and offline without server rewrites. |
 | State | Pure functions in `src/logic` plus Dexie live queries; the combat screen uses a small `useCombat` hook that keeps the combat in memory and writes every change to IndexedDB | Small app; the combat logic is easy to unit-test. Zustand turned out not to be needed. |
 | Persistence | IndexedDB via Dexie.js 4 | Holds hundreds of stat blocks and survives refreshes; autosaves the running combat. The app asks the browser to make storage persistent. |
+| Sync (optional) | Google sign-in (Google Identity Services token flow) and one JSON file in the Google Drive app data folder | Keeps one DM's devices in step with no server, so it still works on GitHub Pages. |
 | Styling | Tailwind CSS 4 | Fast to build dense table-side layouts. |
 | Tests | Vitest for logic (randomness is injected, so dice tests are repeatable); Playwright for browser tests of each screen, run on the system's Edge (`PW_CHANNEL=chrome` for Chrome). An `app` project runs against the dev server, and a `pwa` project runs against the production build to test offline use and installing. | Damage math and turn order must be right. |
 | Hosting | Static build on GitHub Pages or Netlify; installable as a PWA (`vite-plugin-pwa`, already set up) | Offline at the game table. |
@@ -191,13 +191,14 @@ Recommendation: a local-first browser app with no backend, so it works offline a
   - `xp.ts` and `dice.ts`: XP, difficulty and dice
   - `creature.ts`, `encounter.ts`, `party.ts`: rules for the bestiary, encounter and party screens
   - `table.ts`: the player-facing view
-- `src/db/` — Dexie tables (creatures, players, encounters, combats) and JSON backup.
+- `src/db/` — Dexie tables (creatures, players, encounters, combats, deletions), JSON backup, and merging synced data into local data.
+- `src/sync/` — Google sign-in, the Drive file, and when to sync (`google.ts`, `engine.ts`, `manager.ts`); the merge rules are in `src/logic/sync.ts`.
 - `src/components/` — the app shell and shared form controls.
 - `src/features/` — bestiary, encounters, combat, party and player-facing table screens.
 - `e2e/` — Playwright browser tests (`helpers.ts` holds the shared setup).
 - `scripts/make-icons.mjs` — renders the PNG app icons from `public/icon.svg` with Playwright.
 
-If you later want to share across devices or with a co-DM, swap Dexie for a small backend (Supabase or Firebase) behind the same `db/` interface.
+Syncing your own devices is built in (see [Google sync](#google-sync-added-nov-13-2026)). Sharing live with a co-DM would still need a small backend (Supabase or Firebase) behind the same `db/` interface.
 
 ## Screens and UI flow
 
@@ -244,6 +245,26 @@ Build in this order. Each milestone ends with something usable at the table.
    - Damage types (added Nov 13, 2026): the side panel and the multi-target panel take a damage type and pick each creature's modifier from its stat block's resistances, vulnerabilities and immunities. In multi-target, each target follows its own stat block ("Immune from stat block") until you pick its modifier by hand; changing the damage type drops those hand-picked choices.
    - Keyboard shortcuts: `N` next turn, `M` multi-target, `Esc` closes the panel or leaves multi-target. They're ignored while typing or with Ctrl, Alt or ⌘ held. `Esc` in a text box first leaves the box.
    - PWA install: 192 and 512 px PNG icons plus a maskable one, an Apple touch icon, and an "Install app" button in the header when the browser offers it. Browser tests confirm that Chromium reports no installability errors and that the app (including a new tab opened while offline) loads and keeps its data offline. That is the first in-browser check of Milestone 1's offline requirement.
+
+## Google sync (added Nov 13, 2026)
+
+Optional sync of all data between one DM's devices through their Google account, with no server.
+
+- **Where:** a single `dm-combat-tracker.json` file in the account's Google Drive **app data folder** (`drive.appdata` scope). The folder is hidden, and the app can't see the rest of the Drive. The file holds every stat block, player, encounter and combat, plus deletion records.
+- **Merge:** each record keeps the copy with the newer `updatedAt`; a tie keeps this device's copy.
+  - Deleting a record saves a deletion record (database version 3 adds a `deletions` table). A deletion beats copies saved before it and loses to copies saved after it, so deletes spread everywhere and re-creating an item brings it back.
+  - Players now get an `updatedAt` on every save; older ones count as oldest.
+  - Imported stat blocks count as edited at import time.
+- **Round trip:** download, merge into IndexedDB in one transaction (writing only what changed), then upload if the Drive copy is behind. The first sync on a device with existing data merges both sides; nothing is overwritten.
+- **When:** on app start, 4 seconds after any local change, when the app comes back into view or online, every 5 minutes, and from "Sync now". Writes made by sync don't trigger another upload.
+- **Sign-in:** the Google Identity Services token flow, all in the browser. Tokens last about an hour and can only be renewed from a click, so an expired sign-in pauses sync and the header shows **Reconnect sync**. The token is kept for the tab session only; the "sync on" setting and account email are kept in local storage.
+- **Setup:** a Google OAuth client ID, provided at build time as `VITE_GOOGLE_CLIENT_ID` (a repo variable for the GitHub Pages build). Without one, the Sync page explains that sync isn't available. Steps are in the README.
+- **UI:** a Sync page (connect, status, account, Sync now, Disconnect, Delete synced copy, how it works) and a header badge (Synced / Syncing… / Sync failed / Reconnect sync), hidden while sync is off.
+- **Limits:**
+  - An open combat screen keeps its combat in memory and saves over changes to that combat from another device, so run each combat on one device at a time.
+  - Timestamps come from each device's clock.
+  - Two devices uploading at the same moment can briefly overwrite each other; the next sync from either one restores the missed changes, because local data is never dropped.
+- **Tests:** unit tests cover the merge rules, two simulated devices syncing through an in-memory copy, and the version 2 → 3 upgrade. A browser test runs two separate browser profiles against fake Google sign-in and Drive endpoints: merge both ways, a deletion spreading by automatic upload, an expired sign-in and Reconnect, Disconnect, and Delete synced copy.
 
 ## Decisions and later ideas
 

@@ -46,6 +46,13 @@ A local-first web app for preparing D&D 5e encounters and running them at the ta
 ### Offline and install
 - Installable PWA with app icons and an "Install app" button. It works fully offline after the first load, and the app asks the browser not to evict its stored data.
 
+### Google sync (optional)
+- On the **Sync** page, connect a Google account to keep stat blocks, party, encounters and combats the same in every browser signed in to that account. Without it, everything stays on the one device.
+- The data is stored as one file in the account's Google Drive app data folder: hidden, and visible only to this app (`drive.appdata` scope). There's no server.
+- Sync runs a few seconds after each change, when the app is reopened or comes back online, and every 5 minutes. A header badge shows the status.
+- For each item, the newest edit wins. Deletions sync too.
+- Google sign-ins from a web page last about an hour, after which the header shows **Reconnect sync**.
+
 ## Commands
 
 ```sh
@@ -61,7 +68,16 @@ npm run preview    # serve the production build
 
 ## Deploying
 
-Every push to `main` runs [.github/workflows/deploy.yml](.github/workflows/deploy.yml). It runs the unit tests, builds the app and publishes `dist/` to GitHub Pages at `https://lonetitan01.github.io/DnD-Combat-Tracker/`. It can also be run by hand from the Actions tab. One-time setup: **Settings → Pages → Source → GitHub Actions**. Data lives in each browser's IndexedDB, so data from `localhost` doesn't carry over to the hosted copy. Use the bestiary's Export / Import to move stat blocks.
+Every push to `main` runs [.github/workflows/deploy.yml](.github/workflows/deploy.yml). It runs the unit tests, builds the app and publishes `dist/` to GitHub Pages at `https://lonetitan01.github.io/DnD-Combat-Tracker/`. It can also be run by hand from the Actions tab. One-time setup: **Settings → Pages → Source → GitHub Actions**. Data lives in each browser's IndexedDB, so data from `localhost` doesn't carry over to the hosted copy. Use the bestiary's Export / Import to move stat blocks, or turn on Google sync.
+
+### Google sync setup (one time)
+Sync needs a Google OAuth client ID. It isn't a secret, because it only works from the web addresses you list. Without one, the app builds with sync off.
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a project and enable the **Google Drive API**.
+2. Under **Google Auth Platform**, set up the consent screen: choose External and enter the app name and your email. Add the scope `https://www.googleapis.com/auth/drive.appdata`, then either add your Google account as a test user or publish the app.
+3. Under **Clients**, create a **Web application** client. Add these **Authorized JavaScript origins**: `https://lonetitan01.github.io` (and `http://localhost:5173` for local development). No redirect URIs are needed.
+4. In the GitHub repo, go to **Settings → Secrets and variables → Actions → Variables** and add `GOOGLE_CLIENT_ID` with the client ID. The deploy workflow passes it to the build.
+5. For local development, put `VITE_GOOGLE_CLIENT_ID=<client id>` in `.env.local` (git-ignored).
 
 ## Layout
 
@@ -76,7 +92,8 @@ Every push to `main` runs [.github/workflows/deploy.yml](.github/workflows/deplo
   - `table.ts`: the player-facing view (order, current turn, Up Next) with nothing secret in it.
   - `creature.ts`, `encounter.ts`, `party.ts`: stat block editing, validation and import; encounter building and tags; the party roster.
   - `xp.ts`, `dice.ts`: CR → XP, encounter multiplier and difficulty, dice parsing and rolling, HP from hit dice.
-- `src/db/`: Dexie tables (creatures, players, encounters, combats), schema migrations and JSON backup.
+- `src/db/`: Dexie tables (creatures, players, encounters, combats, deletions), schema migrations, JSON backup, and the sync merge into local data.
+- `src/sync/`: Google sync. `google.ts` handles Google sign-in and the Drive file, `engine.ts` does one download → merge → upload round, and `manager.ts` handles when to sync and the status shown in the UI. The merge rules are in `src/logic/sync.ts`.
 - `src/features/`: screens (home, bestiary, encounters, combats, party, and the player-facing `#/table`).
 - `e2e/`: Playwright browser tests.
 

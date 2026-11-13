@@ -27,6 +27,8 @@ export default defineConfig({
     {
       command: 'npx vite --port 5199 --strictPort',
       url: 'http://localhost:5199/',
+      // A dummy client ID turns sync on; the sync test replaces Google's script and Drive with fakes.
+      env: { VITE_GOOGLE_CLIENT_ID: 'e2e-client-id' },
       reuseExistingServer: !process.env.CI,
     },
     {

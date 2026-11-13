@@ -9,6 +9,7 @@ import { EncountersPage } from './features/encounters/EncountersPage';
 import { CombatPage } from './features/combat/CombatPage';
 import { CombatsPage } from './features/combat/CombatsPage';
 import { PartyPage } from './features/party/PartyPage';
+import { SyncPage } from './features/sync/SyncPage';
 import { TablePage } from './features/table/TablePage';
 
 /** Hash routing so the static build works on GitHub Pages and offline without server rewrites. */
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="combats" element={<CombatsPage />} />
           <Route path="combats/:id" element={<CombatPage />} />
           <Route path="party" element={<PartyPage />} />
+          <Route path="sync" element={<SyncPage />} />
         </Route>
       </Routes>
     </HashRouter>

@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router';
+import { SyncBadge } from '../features/sync/SyncPage';
+import { startSync } from '../sync/manager';
 import { InstallButton } from './InstallButton';
 
 const NAV = [
@@ -7,9 +10,11 @@ const NAV = [
   { to: '/encounters', label: 'Encounters' },
   { to: '/combats', label: 'Combats' },
   { to: '/party', label: 'Party' },
+  { to: '/sync', label: 'Sync' },
 ];
 
 export function AppShell() {
+  useEffect(startSync, []);
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-10 border-b border-stone-800 bg-stone-950/95 backdrop-blur">
@@ -34,7 +39,10 @@ export function AppShell() {
               </NavLink>
             ))}
           </nav>
-          <InstallButton />
+          <div className="ml-auto flex items-center gap-2">
+            <SyncBadge />
+            <InstallButton />
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">

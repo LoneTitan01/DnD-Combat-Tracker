@@ -142,6 +142,8 @@ export interface Player {
   level?: number;
   passivePerception?: number;
   initiativeBonus: number;
+  /** Set on every save; used by sync to pick the newest copy. Missing on players saved before sync existed. */
+  updatedAt?: number;
 }
 
 export interface EncounterEntry {
@@ -247,4 +249,31 @@ export interface Combat {
   status: CombatStatus;
   createdAt: number;
   updatedAt: number;
+}
+
+// ---------- sync ----------
+
+export const SYNC_TABLES = ['creatures', 'players', 'encounters', 'combats'] as const;
+export type SyncTable = (typeof SYNC_TABLES)[number];
+
+/** A record deleted on some device, so other devices delete it too instead of bringing it back. */
+export interface Tombstone {
+  table: SyncTable;
+  id: ID;
+  deletedAt: number;
+}
+
+export interface SyncData {
+  creatures: CreatureTemplate[];
+  players: Player[];
+  encounters: Encounter[];
+  combats: Combat[];
+  deletions: Tombstone[];
+}
+
+/** The file kept in the user's Google Drive (app data folder). */
+export interface SyncFile extends SyncData {
+  app: 'dm-combat-tracker';
+  format: 1;
+  savedAt: number;
 }

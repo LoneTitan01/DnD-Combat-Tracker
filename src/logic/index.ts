@@ -11,3 +11,4 @@ export * from './creature';
 export * from './party';
 export * from './encounter';
 export * from './conditions';
+export * from './sync';
