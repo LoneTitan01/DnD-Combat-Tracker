@@ -1,0 +1,84 @@
+import 'fake-indexeddb/auto';
+import Dexie from 'dexie';
+import { afterEach, describe, expect, it } from 'vitest';
+import { TrackerDB, combatsByStatus, exportCreatures, importCreatures, saveCombat, saveCreature, savePlayer } from '.';
+import { makeCombat, makeCombatant, makeTemplate } from '../logic/testUtils';
+
+let n = 0;
+const fresh = () => new TrackerDB(`test-${++n}`);
+let open: TrackerDB | undefined;
+afterEach(async () => {
+  await open?.delete();
+});
+
+describe('TrackerDB', () => {
+  it('persists across a reopen (simulated refresh)', async () => {
+    open = fresh();
+    await saveCreature(makeTemplate({ id: 'gob', name: 'Goblin' }), open);
+    await savePlayer({ id: 'p1', name: 'Aria', initiativeBonus: 2 }, open);
+    open.close();
+
+    const reopened = new TrackerDB(open.name);
+    await reopened.open();
+    expect((await reopened.creatures.get('gob'))?.name).toBe('Goblin');
+    expect(await reopened.players.count()).toBe(1);
+    open = reopened;
+  });
+
+  it('saves and resumes combats with full state', async () => {
+    open = fresh();
+    const combat = makeCombat([makeCombatant({ tokenName: 'Red cap', currentHP: 3 })], { status: 'staged' });
+    await saveCombat(combat, open);
+    const [loaded] = await combatsByStatus('staged', open);
+    expect(loaded?.combatants[0]).toMatchObject({ tokenName: 'Red cap', currentHP: 3 });
+  });
+
+  it('round-trips stat blocks through JSON export/import', async () => {
+    open = fresh();
+    await saveCreature(makeTemplate({ id: 'a', name: 'Owlbear' }), open);
+    const json = JSON.parse(JSON.stringify(await exportCreatures(undefined, open)));
+    const other = fresh();
+    expect(await importCreatures(json, other)).toEqual({ added: 1, replaced: 0, skipped: 0 });
+    expect(await importCreatures(json, other)).toEqual({ added: 0, replaced: 1, skipped: 0 });
+    expect((await other.creatures.get('a'))?.name).toBe('Owlbear');
+    await other.delete();
+  });
+
+  it('imports a single stat block and skips nameless entries', async () => {
+    open = fresh();
+    expect(await importCreatures({ name: 'Bandit', cr: '1/8' }, open)).toMatchObject({ added: 1 });
+    expect(await importCreatures([{ name: 'Thug' }, { cr: '1' }], open)).toEqual({ added: 1, replaced: 0, skipped: 1 });
+    expect(await open.creatures.count()).toBe(2);
+  });
+
+  it('exports only the selected stat blocks', async () => {
+    open = fresh();
+    await saveCreature(makeTemplate({ id: 'a' }), open);
+    await saveCreature(makeTemplate({ id: 'b' }), open);
+    expect((await exportCreatures(['b'], open)).creatures.map((c) => c.id)).toEqual(['b']);
+  });
+
+  it('upgrades plain-name conditions in combats saved by v1', async () => {
+    const name = `test-upgrade-${++n}`;
+    const v1 = new Dexie(name);
+    v1.version(1).stores({
+      creatures: 'id, name, type, cr, updatedAt',
+      players: 'id, name',
+      encounters: 'id, name, *tags, updatedAt',
+      combats: 'id, encounterId, status, updatedAt',
+    });
+    const old = makeCombat([makeCombatant({ id: 'g' })]);
+    (old.combatants[0] as unknown as { conditions: string[] }).conditions = ['prone', 'poisoned'];
+    await v1.table('combats').put(old);
+    v1.close();
+
+    open = new TrackerDB(name);
+    const upgraded = await open.combats.get(old.id);
+    expect(upgraded?.combatants[0]!.conditions).toEqual([{ name: 'prone' }, { name: 'poisoned' }]);
+  });
+
+  it('rejects files without creatures', async () => {
+    open = fresh();
+    await expect(importCreatures({ foo: 1 }, open)).rejects.toThrow();
+  });
+});

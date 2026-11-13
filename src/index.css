@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Georgia", "Times New Roman", serif;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+/* Native number inputs: hide spinners, they get in the way at the table. */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}

@@ -1,0 +1,45 @@
+import { NavLink, Outlet } from 'react-router';
+import { InstallButton } from './InstallButton';
+
+const NAV = [
+  { to: '/', label: 'Home', end: true },
+  { to: '/bestiary', label: 'Bestiary' },
+  { to: '/encounters', label: 'Encounters' },
+  { to: '/combats', label: 'Combats' },
+  { to: '/party', label: 'Party' },
+];
+
+export function AppShell() {
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <header className="sticky top-0 z-10 border-b border-stone-800 bg-stone-950/95 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
+          <NavLink to="/" className="flex items-center gap-2 font-display text-lg font-bold text-amber-400">
+            <img src="./icon.svg" alt="" className="h-7 w-7" />
+            <span className="hidden sm:inline">DM Combat Tracker</span>
+          </NavLink>
+          <nav className="flex gap-1 overflow-x-auto text-sm">
+            {NAV.map((n) => (
+              <NavLink
+                key={n.to}
+                to={n.to}
+                end={n.end}
+                className={({ isActive }) =>
+                  `whitespace-nowrap rounded-md px-3 py-1.5 transition-colors ${
+                    isActive ? 'bg-amber-500/15 text-amber-300' : 'text-stone-400 hover:bg-stone-800 hover:text-stone-100'
+                  }`
+                }
+              >
+                {n.label}
+              </NavLink>
+            ))}
+          </nav>
+          <InstallButton />
+        </div>
+      </header>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
