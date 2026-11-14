@@ -1,20 +1,23 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { Button, Card, Field, NumberField, PageHeader, TextArea, TextInput } from '../../components/ui';
-import { db, saveEncounter } from '../../db';
+import { Button, Card, Field, NumberField, PageHeader, Select, TextArea, TextInput } from '../../components/ui';
+import { db, moveEncounterCombats, saveEncounter } from '../../db';
 import {
   MAX_COUNT,
   addToEncounter,
   allTags,
   blankEncounter,
+  campaignOf,
   encounterStats,
+  inCampaign,
   parseTags,
   setEntryCount,
 } from '../../logic';
 import type { Encounter, ID } from '../../models';
 import { confirmAndDeleteEncounter, duplicateAndSaveEncounter } from './actions';
 import { CreaturePicker } from '../bestiary/CreaturePicker';
+import { useCampaign } from '../campaigns/useCampaign';
 import { stageEncounter } from '../combat/stage';
 import { DifficultyPanel } from './Difficulty';
 
@@ -22,9 +25,10 @@ export function EncounterEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { campaigns, campaign } = useCampaign();
   const creatures = useLiveQuery(() => db.creatures.toArray());
-  const players = useLiveQuery(() => db.players.orderBy('name').toArray());
-  const encounters = useLiveQuery(() => db.encounters.toArray());
+  const allPlayers = useLiveQuery(() => db.players.orderBy('name').toArray());
+  const allEncounters = useLiveQuery(() => db.encounters.toArray());
   const templates = useMemo(() => new Map((creatures ?? []).map((c) => [c.id, c])), [creatures]);
 
   const [draft, setDraft] = useState<Encounter | null>(id ? null : blankEncounter);
@@ -49,6 +53,11 @@ export function EncounterEditor() {
       setSaved(JSON.stringify(e));
     });
   }, [id]);
+
+  // A new encounter goes into the current campaign; an existing one stays in its own unless moved.
+  const campaignId = !draft ? undefined : id ? campaignOf(draft) : (draft.campaignId ?? campaign?.id);
+  const players = useMemo(() => allPlayers?.filter(inCampaign(campaignId)), [allPlayers, campaignId]);
+  const encounters = useMemo(() => allEncounters?.filter(inCampaign(campaignId)), [allEncounters, campaignId]);
 
   const current = draft ? { ...draft, tags: parseTags(tagText) } : null;
   const dirty = current !== null && saved !== '' && JSON.stringify(current) !== saved;
@@ -91,9 +100,11 @@ export function EncounterEditor() {
 
   const save = async () => {
     setShowErrors(true);
-    if (nameError) return;
-    const toSave = { ...current, name: current.name.trim() };
+    if (nameError || !campaignId) return;
+    const toSave = { ...current, name: current.name.trim(), campaignId };
     await saveEncounter(toSave);
+    // Combats staged from it follow it to its new campaign.
+    if (id) await moveEncounterCombats(toSave.id, campaignId);
     setDraft(toSave);
     setTagText(toSave.tags.join(', '));
     setSaved(JSON.stringify(toSave));
@@ -159,6 +170,17 @@ export function EncounterEditor() {
                 rows={2}
               />
             </Field>
+            {campaigns && campaigns.length > 1 && id && (
+              <Field label="Campaign" hint="moving it takes its staged combats along">
+                <Select value={campaignOf(draft)} onChange={(e) => set({ campaignId: e.target.value })}>
+                  {campaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name || 'Untitled'}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
             <Field label="Tags" hint="comma-separated, e.g. session or adventure">
               <TextInput value={tagText} onChange={(e) => setTagText(e.target.value)} placeholder="Session 3, Lost Mine" />
             </Field>

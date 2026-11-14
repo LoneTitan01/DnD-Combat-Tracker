@@ -16,6 +16,8 @@ import {
   setCreatureHP,
   startCombat,
   type AttendingPlayer,
+  campaignOf,
+  inCampaign,
 } from '../../logic';
 import type { Combat, Combatant, CreatureTemplate, ID } from '../../models';
 import { CreaturePicker } from '../bestiary/CreaturePicker';
@@ -106,7 +108,9 @@ function StagedRow({
 }
 
 function StartCombatPanel({ combat, update, onCancel }: { combat: Combat; update: UpdateCombat; onCancel: () => void }) {
-  const players = useLiveQuery(() => db.players.orderBy('name').toArray());
+  // Only this combat's campaign's party.
+  const cid = campaignOf(combat);
+  const players = useLiveQuery(async () => (await db.players.orderBy('name').toArray()).filter(inCampaign(cid)), [cid]);
   const [absent, setAbsent] = useState<Set<ID>>(new Set());
   const [inits, setInits] = useState<Record<ID, string>>({});
   const present = (players ?? []).filter((p) => !absent.has(p.id));

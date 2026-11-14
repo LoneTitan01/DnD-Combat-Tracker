@@ -1,0 +1,43 @@
+import { Link, useLocation } from 'react-router';
+import { Select } from '../../components/ui';
+import { useCampaign } from './useCampaign';
+
+/** Sits at the top of every DM page: which campaign you're in, and a quick switch. */
+export function CampaignBar() {
+  const { campaigns, campaign, select } = useCampaign();
+  const onCampaignsPage = useLocation().pathname === '/campaigns';
+  if (!campaigns || !campaign) return null;
+  return (
+    <div className="border-b border-stone-800/70 bg-stone-900/60">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
+        <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">Campaign</span>
+        {campaigns.length > 1 ? (
+          <Select
+            aria-label="Current campaign"
+            value={campaign.id}
+            onChange={(e) => select(e.target.value)}
+            className="max-w-64 py-1 font-display font-semibold text-amber-300"
+          >
+            {campaigns.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name || 'Untitled'}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <span className="font-display font-semibold text-amber-300">
+            {campaign.name || 'Untitled'}
+          </span>
+        )}
+        {campaign.description && (
+          <span className="hidden min-w-0 flex-1 truncate text-xs text-stone-500 md:inline">{campaign.description}</span>
+        )}
+        {!onCampaignsPage && (
+          <Link to="/campaigns" className="ml-auto text-xs text-stone-400 hover:text-amber-300">
+            {campaigns.length > 1 ? 'Manage campaigns' : 'New campaign'}
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}

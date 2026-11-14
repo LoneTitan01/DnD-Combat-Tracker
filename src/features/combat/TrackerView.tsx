@@ -14,6 +14,8 @@ import {
   nextTurn,
   describeLogEntry,
   removeCombatant,
+  campaignOf,
+  inCampaign,
 } from '../../logic';
 import type { Combat, Combatant, CreatureTemplate, ID, LogEntry } from '../../models';
 import { CombatNotes } from './CombatNotes';
@@ -148,7 +150,9 @@ function Row({
 }
 
 function AddPlayerControl({ combat, update }: { combat: Combat; update: UpdateCombat }) {
-  const players = useLiveQuery(() => db.players.orderBy('name').toArray());
+  // Only this combat's campaign's party.
+  const cid = campaignOf(combat);
+  const players = useLiveQuery(async () => (await db.players.orderBy('name').toArray()).filter(inCampaign(cid)), [cid]);
   const inCombat = new Set(combat.combatants.map((c) => c.playerId).filter(Boolean));
   const available = (players ?? []).filter((p) => !inCombat.has(p.id));
   const [pid, setPid] = useState('');

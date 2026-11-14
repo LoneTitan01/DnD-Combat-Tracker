@@ -136,8 +136,22 @@ export interface CreatureTemplate {
   updatedAt: number;
 }
 
+/** An umbrella for one group's players, encounters and combats. The bestiary is shared by all campaigns. */
+export interface Campaign {
+  id: ID;
+  name: string;
+  description: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** The campaign that records saved before campaigns existed belong to. */
+export const DEFAULT_CAMPAIGN_ID = 'default';
+
 export interface Player {
   id: ID;
+  /** Missing on players saved before campaigns existed: they belong to the default campaign. */
+  campaignId?: ID;
   name: string;
   level?: number;
   passivePerception?: number;
@@ -153,6 +167,8 @@ export interface EncounterEntry {
 
 export interface Encounter {
   id: ID;
+  /** Missing on encounters saved before campaigns existed: they belong to the default campaign. */
+  campaignId?: ID;
   name: string;
   description: string;
   entries: EncounterEntry[];
@@ -248,6 +264,8 @@ export interface LogEntry {
 export interface Combat {
   id: ID;
   encounterId: ID;
+  /** Copied from the encounter when staged. Missing on older combats: they belong to the default campaign. */
+  campaignId?: ID;
   name: string;
   round: number;
   /** Index into `combatants`, which is always kept in turn order. */
@@ -261,7 +279,7 @@ export interface Combat {
 
 // ---------- sync ----------
 
-export const SYNC_TABLES = ['creatures', 'players', 'encounters', 'combats'] as const;
+export const SYNC_TABLES = ['campaigns', 'creatures', 'players', 'encounters', 'combats'] as const;
 export type SyncTable = (typeof SYNC_TABLES)[number];
 
 /** A record deleted on some device, so other devices delete it too instead of bringing it back. */
@@ -272,6 +290,7 @@ export interface Tombstone {
 }
 
 export interface SyncData {
+  campaigns: Campaign[];
   creatures: CreatureTemplate[];
   players: Player[];
   encounters: Encounter[];

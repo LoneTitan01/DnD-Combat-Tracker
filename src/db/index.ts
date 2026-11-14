@@ -1,9 +1,12 @@
 import Dexie, { type EntityTable } from 'dexie';
+import { campaignOf, defaultCampaign, inCampaign, newCampaign } from '../logic/campaign';
 import { normalizeConditions } from '../logic/conditions';
 import { normalizeCreature } from '../logic/creature';
 import { mergeSyncData, sameSyncData, stampOf, tombstoneKey } from '../logic/sync';
 import {
+  DEFAULT_CAMPAIGN_ID,
   SYNC_TABLES,
+  type Campaign,
   type Combat,
   type CreatureTemplate,
   type Encounter,
@@ -21,6 +24,7 @@ export type StoredTombstone = Tombstone & { key: string };
  * for a backend (Supabase/Firebase) behind the same functions.
  */
 export class TrackerDB extends Dexie {
+  campaigns!: EntityTable<Campaign, 'id'>;
   creatures!: EntityTable<CreatureTemplate, 'id'>;
   players!: EntityTable<Player, 'id'>;
   encounters!: EntityTable<Encounter, 'id'>;
@@ -47,6 +51,28 @@ export class TrackerDB extends Dexie {
     );
     // v3: deletions are remembered (tombstones) so sync can delete on other devices too.
     this.version(3).stores({ deletions: 'key, table, deletedAt' });
+    // v4: campaigns. Existing players, encounters and combats move into a default campaign. Their
+    // `updatedAt` is left alone: other devices treat a missing campaignId as that same campaign.
+    this.version(4)
+      .stores({ campaigns: 'id, name' })
+      .upgrade(async (tx) => {
+        const counts = await Promise.all(['players', 'encounters', 'combats'].map((t) => tx.table(t).count()));
+        if (counts.every((n) => n === 0)) return;
+        await tx.table('campaigns').put(defaultCampaign());
+        const encounterCampaign = new Map<ID, ID>();
+        await tx.table('players').toCollection().modify((p: Player) => void (p.campaignId ??= DEFAULT_CAMPAIGN_ID));
+        await tx
+          .table('encounters')
+          .toCollection()
+          .modify((e: Encounter) => {
+            e.campaignId ??= DEFAULT_CAMPAIGN_ID;
+            encounterCampaign.set(e.id, e.campaignId);
+          });
+        await tx
+          .table('combats')
+          .toCollection()
+          .modify((c: Combat) => void (c.campaignId ??= encounterCampaign.get(c.encounterId) ?? DEFAULT_CAMPAIGN_ID));
+      });
   }
 }
 
@@ -81,6 +107,68 @@ export async function requestPersistentStorage(): Promise<boolean> {
   if (typeof navigator === 'undefined' || !navigator.storage?.persist) return false;
   if (await navigator.storage.persisted()) return true;
   return navigator.storage.persist();
+}
+
+// ---------- campaigns ----------
+
+export async function saveCampaign(c: Campaign, database: TrackerDB = db): Promise<void> {
+  await database.campaigns.put({ ...c, updatedAt: Date.now() });
+  changed();
+}
+
+/**
+ * Makes sure there's at least one campaign to work in. A fresh install gets the default placeholder
+ * (which loses to anything synced in); if that was deleted on purpose, a brand-new one instead.
+ */
+export async function ensureCampaign(database: TrackerDB = db): Promise<void> {
+  if ((await database.campaigns.count()) > 0) return;
+  const defaultDeleted = await database.deletions.get(tombstoneKey({ table: 'campaigns', id: DEFAULT_CAMPAIGN_ID }));
+  if (defaultDeleted) await saveCampaign(newCampaign('My Campaign'), database);
+  else await database.campaigns.put(defaultCampaign());
+}
+
+export interface CampaignContents {
+  players: Player[];
+  encounters: Encounter[];
+  combats: Combat[];
+}
+
+export async function campaignContents(id: ID, database: TrackerDB = db): Promise<CampaignContents> {
+  const [players, encounters, combats] = await Promise.all([
+    database.players.filter(inCampaign(id)).toArray(),
+    database.encounters.filter(inCampaign(id)).toArray(),
+    database.combats.filter(inCampaign(id)).toArray(),
+  ]);
+  return { players, encounters, combats };
+}
+
+/** Deletes a campaign with its players, encounters and combats. Stat blocks are shared and stay. */
+export async function deleteCampaign(id: ID, database: TrackerDB = db): Promise<void> {
+  const tables = [database.campaigns, database.players, database.encounters, database.combats, database.deletions];
+  await database.transaction('rw', tables, async () => {
+    const contents = await campaignContents(id, database);
+    const deletedAt = Date.now();
+    const doomed: Tombstone[] = [
+      { table: 'campaigns', id, deletedAt },
+      ...contents.players.map((r) => ({ table: 'players' as const, id: r.id, deletedAt })),
+      ...contents.encounters.map((r) => ({ table: 'encounters' as const, id: r.id, deletedAt })),
+      ...contents.combats.map((r) => ({ table: 'combats' as const, id: r.id, deletedAt })),
+    ];
+    for (const t of doomed) await database.table(t.table).delete(t.id);
+    await database.deletions.bulkPut(doomed.map((t) => ({ ...t, key: tombstoneKey(t) })));
+  });
+  changed();
+}
+
+/** Moves the combats staged from an encounter into the given campaign (after the encounter itself moved). */
+export async function moveEncounterCombats(encounterId: ID, campaignId: ID, database: TrackerDB = db): Promise<void> {
+  const combats = (await database.combats.where('encounterId').equals(encounterId).toArray()).filter(
+    (c) => campaignOf(c) !== campaignId,
+  );
+  if (combats.length === 0) return;
+  const now = Date.now();
+  await database.combats.bulkPut(combats.map((c) => ({ ...c, campaignId, updatedAt: now })));
+  changed();
 }
 
 // ---------- creatures ----------
@@ -200,14 +288,15 @@ export async function encountersUsingCreature(id: ID, database: TrackerDB = db):
 
 /** Everything sync covers, as stored on this device. */
 export async function localSyncData(database: TrackerDB = db): Promise<SyncData> {
-  const [creatures, players, encounters, combats, deletions] = await Promise.all([
+  const [campaigns, creatures, players, encounters, combats, deletions] = await Promise.all([
+    database.campaigns.toArray(),
     database.creatures.toArray(),
     database.players.toArray(),
     database.encounters.toArray(),
     database.combats.toArray(),
     database.deletions.toArray(),
   ]);
-  return { creatures, players, encounters, combats, deletions: deletions.map(({ key: _key, ...t }) => t) };
+  return { campaigns, creatures, players, encounters, combats, deletions: deletions.map(({ key: _key, ...t }) => t) };
 }
 
 export interface MergeResult {

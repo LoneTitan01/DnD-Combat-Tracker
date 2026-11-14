@@ -14,7 +14,7 @@ export const stampOf = (r: Rec): number => r.updatedAt ?? 0;
 export const tombstoneKey = (t: Pick<Tombstone, 'table' | 'id'>): string => `${t.table}:${t.id}`;
 
 export function emptySyncData(): SyncData {
-  return { creatures: [], players: [], encounters: [], combats: [], deletions: [] };
+  return { campaigns: [], creatures: [], players: [], encounters: [], combats: [], deletions: [] };
 }
 
 export function mergeTombstones(a: readonly Tombstone[], b: readonly Tombstone[]): Tombstone[] {
@@ -43,6 +43,7 @@ export function mergeSyncData(local: SyncData, remote: SyncData): SyncData {
   const deletions = mergeTombstones(local.deletions, remote.deletions);
   const deleted = new Map(deletions.map((t) => [tombstoneKey(t), t]));
   return {
+    campaigns: mergeTable('campaigns', local.campaigns, remote.campaigns, deleted),
     creatures: mergeTable('creatures', local.creatures, remote.creatures, deleted),
     players: mergeTable('players', local.players, remote.players, deleted),
     encounters: mergeTable('encounters', local.encounters, remote.encounters, deleted),
@@ -70,6 +71,7 @@ export function parseSyncFile(raw: unknown): SyncFile {
     app: 'dm-combat-tracker',
     format: 1,
     savedAt: typeof f.savedAt === 'number' ? f.savedAt : 0,
+    campaigns: list(f.campaigns),
     creatures: list(f.creatures),
     players: list(f.players),
     encounters: list(f.encounters),

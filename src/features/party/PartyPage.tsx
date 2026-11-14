@@ -5,12 +5,14 @@ import { db, deletePlayer, savePlayer } from '../../db';
 import {
   duplicatePlayerNames,
   formatMod,
+  inCampaign,
   newId,
   partySummary,
   playerFromInput,
   type PlayerInput,
 } from '../../logic';
 import type { Player } from '../../models';
+import { useCampaign } from '../campaigns/useCampaign';
 
 const EMPTY: PlayerInput = { name: '', level: '', initiativeBonus: '', passivePerception: '' };
 
@@ -37,7 +39,7 @@ function PlayerRow({ player, duplicate }: { player: Player; duplicate: boolean }
     }
     setText(toInput(parsed));
     if (JSON.stringify(toInput(parsed)) !== JSON.stringify(toInput(player))) {
-      void savePlayer({ id: player.id, ...parsed });
+      void savePlayer({ ...player, ...parsed });
     }
   };
 
@@ -115,7 +117,11 @@ function PartyBudget({ players }: { players: Player[] }) {
 }
 
 export function PartyPage() {
-  const players = useLiveQuery(() => db.players.orderBy('name').toArray());
+  const { campaign } = useCampaign();
+  const players = useLiveQuery(
+    async () => (campaign ? (await db.players.orderBy('name').toArray()).filter(inCampaign(campaign.id)) : undefined),
+    [campaign?.id],
+  );
   const [form, setForm] = useState<PlayerInput>(EMPTY);
   const dupes = useMemo(() => duplicatePlayerNames(players ?? []), [players]);
   const formName = form.name.trim().toLowerCase();
@@ -124,8 +130,8 @@ export function PartyPage() {
   const add = async (e: FormEvent) => {
     e.preventDefault();
     const parsed = playerFromInput(form);
-    if (!parsed) return;
-    await savePlayer({ id: newId(), ...parsed });
+    if (!parsed || !campaign) return;
+    await savePlayer({ id: newId(), campaignId: campaign.id, ...parsed });
     setForm(EMPTY);
   };
 
@@ -145,7 +151,7 @@ export function PartyPage() {
     <>
       <PageHeader title="Party" />
       <p className="mb-4 max-w-2xl text-sm text-stone-400">
-        The saved roster. Players track their own AC and HP; level is only used for encounter difficulty. You pick
+        This campaign's roster. Players track their own AC and HP; level is only used for encounter difficulty. You pick
         who is present when a combat starts.
       </p>
 

@@ -12,3 +12,4 @@ export * from './party';
 export * from './encounter';
 export * from './conditions';
 export * from './sync';
+export * from './campaign';

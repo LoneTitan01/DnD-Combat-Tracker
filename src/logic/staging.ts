@@ -1,4 +1,4 @@
-import type { Combat, Combatant, CreatureTemplate, Encounter, ID, Player } from '../models';
+import { DEFAULT_CAMPAIGN_ID, type Combat, type Combatant, type CreatureTemplate, type Encounter, type ID, type Player } from '../models';
 import { initialAbilityStates } from './combat';
 import { abilityMod, averageHP, defaultRng, rollHP, type Rng } from './dice';
 import { rollInitiative, sortInitiative, withCombatants } from './initiative';
@@ -106,6 +106,7 @@ export function stageCombat(
   return {
     id: newId(),
     encounterId: encounter.id,
+    campaignId: encounter.campaignId ?? DEFAULT_CAMPAIGN_ID,
     name: encounter.name,
     round: 0,
     turnIndex: 0,

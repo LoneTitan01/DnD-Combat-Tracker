@@ -2,8 +2,9 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Link } from 'react-router';
 import { Button, Card, PageHeader } from '../../components/ui';
 import { db } from '../../db';
-import { defeatedXP } from '../../logic';
+import { defeatedXP, inCampaign } from '../../logic';
 import type { Combat } from '../../models';
+import { useCampaign } from '../campaigns/useCampaign';
 import { confirmAndDeleteCombat } from './stage';
 
 function ago(ts: number): string {
@@ -51,14 +52,19 @@ const SECTIONS: Array<{ status: Combat['status']; title: string; empty: string }
 ];
 
 export function CombatsPage() {
-  const combats = useLiveQuery(() => db.combats.orderBy('updatedAt').reverse().toArray());
+  const { campaign } = useCampaign();
+  const cid = campaign?.id;
+  const combats = useLiveQuery(
+    async () => (cid ? (await db.combats.orderBy('updatedAt').reverse().toArray()).filter(inCampaign(cid)) : undefined),
+    [cid],
+  );
   if (!combats) return null;
   return (
     <>
       <PageHeader title="Combats" />
       {combats.length === 0 && (
         <Card className="text-center text-sm text-stone-400">
-          <p>No combats yet.</p>
+          <p>No combats in this campaign yet.</p>
           <p className="mt-1">
             Open an{' '}
             <Link to="/encounters" className="text-amber-400 hover:underline">

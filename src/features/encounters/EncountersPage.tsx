@@ -3,8 +3,9 @@ import { useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Button, Card, PageHeader, Select, TextInput } from '../../components/ui';
 import { db } from '../../db';
-import { allTags, encounterStats, encounterSummary, filterEncounters, groupByTag } from '../../logic';
+import { allTags, encounterStats, encounterSummary, filterEncounters, groupByTag, inCampaign } from '../../logic';
 import type { CreatureTemplate, Encounter, ID } from '../../models';
+import { useCampaign } from '../campaigns/useCampaign';
 import { stageEncounter } from '../combat/stage';
 import { confirmAndDeleteEncounter, duplicateAndSaveEncounter } from './actions';
 import { DifficultyBadge } from './Difficulty';
@@ -61,9 +62,14 @@ function EncounterCard({
 
 export function EncountersPage() {
   const navigate = useNavigate();
-  const encounters = useLiveQuery(() => db.encounters.toArray());
+  const { campaign } = useCampaign();
+  const cid = campaign?.id;
+  const encounters = useLiveQuery(
+    async () => (cid ? (await db.encounters.toArray()).filter(inCampaign(cid)) : undefined),
+    [cid],
+  );
   const creatures = useLiveQuery(() => db.creatures.toArray());
-  const players = useLiveQuery(() => db.players.toArray());
+  const players = useLiveQuery(async () => (cid ? (await db.players.toArray()).filter(inCampaign(cid)) : undefined), [cid]);
   const templates = useMemo(() => new Map((creatures ?? []).map((c) => [c.id, c])), [creatures]);
   const partyLevels = (players ?? []).map((p) => p.level).filter((l): l is number => l !== undefined);
 
@@ -115,7 +121,7 @@ export function EncountersPage() {
 
       {encounters?.length === 0 && (
         <Card className="text-center text-sm text-stone-400">
-          <p>No encounters yet.</p>
+          <p>No encounters in this campaign yet.</p>
           <p className="mt-1">Build one from your bestiary; players are added when the fight starts.</p>
         </Card>
       )}

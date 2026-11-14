@@ -6,6 +6,7 @@ import { CreatureEditor } from './features/bestiary/CreatureEditor';
 import { CreaturePage } from './features/bestiary/CreaturePage';
 import { EncounterEditor } from './features/encounters/EncounterEditor';
 import { EncountersPage } from './features/encounters/EncountersPage';
+import { CampaignsPage } from './features/campaigns/CampaignsPage';
 import { CombatPage } from './features/combat/CombatPage';
 import { CombatsPage } from './features/combat/CombatsPage';
 import { PartyPage } from './features/party/PartyPage';
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/table" element={<TablePage />} />
         <Route element={<AppShell />}>
           <Route index element={<HomePage />} />
+          <Route path="campaigns" element={<CampaignsPage />} />
           <Route path="bestiary" element={<BestiaryPage />} />
           <Route path="bestiary/new" element={<CreatureEditor />} />
           <Route path="bestiary/:id" element={<CreaturePage />} />

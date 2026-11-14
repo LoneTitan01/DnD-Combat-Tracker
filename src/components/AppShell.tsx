@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router';
+import { ensureCampaign } from '../db';
+import { CampaignBar } from '../features/campaigns/CampaignBar';
 import { SyncBadge } from '../features/sync/SyncPage';
 import { startSync } from '../sync/manager';
 import { InstallButton } from './InstallButton';
@@ -15,6 +17,7 @@ const NAV = [
 
 export function AppShell() {
   useEffect(startSync, []);
+  useEffect(() => void ensureCampaign(), []);
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-10 border-b border-stone-800 bg-stone-950/95 backdrop-blur">
@@ -45,6 +48,7 @@ export function AppShell() {
           </div>
         </div>
       </header>
+      <CampaignBar />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
         <Outlet />
       </main>
