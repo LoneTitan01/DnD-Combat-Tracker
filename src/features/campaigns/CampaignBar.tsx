@@ -10,7 +10,12 @@ export function CampaignBar() {
   return (
     <div className="border-b border-stone-800/70 bg-stone-900/60">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
-        <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">Campaign</span>
+        <Link
+          to="/campaigns"
+          className="text-xs font-semibold uppercase tracking-wider text-stone-500 hover:text-amber-300"
+        >
+          Campaign
+        </Link>
         {campaigns.length > 1 ? (
           <Select
             aria-label="Current campaign"
@@ -25,9 +30,9 @@ export function CampaignBar() {
             ))}
           </Select>
         ) : (
-          <span className="font-display font-semibold text-amber-300">
+          <Link to="/campaigns" className="font-display font-semibold text-amber-300 hover:text-amber-200 hover:underline">
             {campaign.name || 'Untitled'}
-          </span>
+          </Link>
         )}
         {campaign.description && (
           <span className="hidden min-w-0 flex-1 truncate text-xs text-stone-500 md:inline">{campaign.description}</span>

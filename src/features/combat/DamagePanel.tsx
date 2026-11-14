@@ -6,6 +6,7 @@ import {
   healCombatant,
   modifierFor,
   removeCombatant,
+  renameToken,
   reviveCombatant,
   tempHPCombatant,
 } from '../../logic';
@@ -35,6 +36,65 @@ export function HPBar({ c }: { c: Combatant }) {
         {c.currentHP}/{c.maxHP}
         {c.tempHP > 0 && <span className="text-sky-300"> +{c.tempHP}</span>}
       </span>
+    </div>
+  );
+}
+
+/** Token name heading; click it to rename. Enter or leaving the box saves, Escape cancels. */
+function TokenNameHeading({ c, combat, update }: { c: Combatant; combat: Combat; update: UpdateCombat }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(c.tokenName);
+  const cancelled = useRef(false);
+  useEffect(() => setEditing(false), [c.id]);
+
+  const commit = () => {
+    setEditing(false);
+    if (cancelled.current) return;
+    const name = draft.trim();
+    if (name && name !== c.tokenName) update((cb) => renameToken(cb, c.id, name));
+  };
+  const duplicate =
+    editing &&
+    draft.trim() !== '' &&
+    combat.combatants.some((x) => x.id !== c.id && x.tokenName.trim().toLowerCase() === draft.trim().toLowerCase());
+
+  if (!editing) {
+    return (
+      <h2 className="font-display text-xl font-bold text-stone-100">
+        <button
+          type="button"
+          className="cursor-text rounded text-left hover:underline hover:decoration-stone-500 hover:decoration-dotted"
+          title="Click to rename"
+          onClick={() => {
+            cancelled.current = false;
+            setDraft(c.tokenName);
+            setEditing(true);
+          }}
+        >
+          {c.tokenName}
+        </button>
+      </h2>
+    );
+  }
+  return (
+    <div>
+      <TextInput
+        autoFocus
+        className="font-display text-xl font-bold"
+        aria-label={`Token name for ${c.tokenName}`}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          else if (e.key === 'Escape') {
+            cancelled.current = true;
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      {duplicate && <p className="mt-1 text-xs text-amber-400">Another combatant already has this name</p>}
     </div>
   );
 }
@@ -107,7 +167,7 @@ export function CreaturePanel({
       <Card className="flex flex-col gap-3 border-amber-800/60">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h2 className="font-display text-xl font-bold text-stone-100">{c.tokenName}</h2>
+            <TokenNameHeading c={c} combat={combat} update={update} />
             <HPBar c={c} />
           </div>
           <Button variant="ghost" aria-label="Close panel" onClick={onClose}>

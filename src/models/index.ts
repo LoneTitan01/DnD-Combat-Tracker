@@ -71,6 +71,37 @@ export const CONDITIONS = [
 ] as const;
 export type Condition = (typeof CONDITIONS)[number];
 
+/** What each condition does (2014 rules), shown on hover. */
+export const CONDITION_DESCRIPTIONS: Record<Condition, string> = {
+  blinded:
+    "Can't see; automatically fails checks that require sight.\nAttack rolls against it have advantage; its attack rolls have disadvantage.",
+  charmed:
+    "Can't attack the charmer or target it with harmful abilities or magic.\nThe charmer has advantage on ability checks to interact socially with it.",
+  deafened: "Can't hear; automatically fails checks that require hearing.",
+  exhaustion:
+    'Cumulative levels:\n1: Disadvantage on ability checks\n2: Speed halved\n3: Disadvantage on attack rolls and saving throws\n4: Hit point maximum halved\n5: Speed reduced to 0\n6: Death\nA long rest (with food and drink) removes one level.',
+  frightened:
+    "Disadvantage on ability checks and attack rolls while the source of its fear is in sight.\nCan't willingly move closer to the source.",
+  grappled:
+    "Speed becomes 0 and can't benefit from bonuses to speed.\nEnds if the grappler is incapacitated, or if an effect moves it out of the grappler's reach.",
+  incapacitated: "Can't take actions or reactions.",
+  invisible:
+    "Impossible to see without magic or a special sense; counts as heavily obscured for hiding.\nAttack rolls against it have disadvantage; its attack rolls have advantage.",
+  paralyzed:
+    "Incapacitated; can't move or speak.\nAutomatically fails Strength and Dexterity saves.\nAttack rolls against it have advantage; any hit from within 5 ft is a critical hit.",
+  petrified:
+    "Turned to solid substance; weight ×10 and stops aging.\nIncapacitated; can't move or speak; unaware of its surroundings.\nAttack rolls against it have advantage; automatically fails Strength and Dexterity saves.\nResistance to all damage; immune to poison and disease (existing ones are suspended).",
+  poisoned: 'Disadvantage on attack rolls and ability checks.',
+  prone:
+    "Can only crawl unless it stands up (costs half its speed).\nDisadvantage on its attack rolls.\nAttacks against it have advantage within 5 ft, disadvantage from farther away.",
+  restrained:
+    'Speed becomes 0 and can\'t benefit from bonuses to speed.\nAttack rolls against it have advantage; its attack rolls have disadvantage.\nDisadvantage on Dexterity saves.',
+  stunned:
+    "Incapacitated; can't move; can speak only falteringly.\nAutomatically fails Strength and Dexterity saves.\nAttack rolls against it have advantage.",
+  unconscious:
+    "Incapacitated; can't move or speak; unaware of its surroundings. Drops what it's holding and falls prone.\nAutomatically fails Strength and Dexterity saves.\nAttack rolls against it have advantage; any hit from within 5 ft is a critical hit.",
+};
+
 /** Whether a timed condition runs out at the start or the end of a turn. */
 export type ConditionTiming = 'start' | 'end';
 

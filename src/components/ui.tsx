@@ -83,11 +83,22 @@ export function NumberField({
 }
 
 /** Toggle chip for multi-select sets (damage types, conditions). */
-export function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
+export function Chip({
+  on,
+  onClick,
+  title,
+  children,
+}: {
+  on: boolean;
+  onClick: () => void;
+  title?: string;
+  children: ReactNode;
+}) {
   return (
     <button
       type="button"
       aria-pressed={on}
+      title={title}
       onClick={onClick}
       className={`rounded-full border px-2.5 py-0.5 text-xs capitalize transition-colors ${
         on

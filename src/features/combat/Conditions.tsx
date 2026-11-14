@@ -11,6 +11,7 @@ import {
 } from '../../logic';
 import {
   CONDITIONS,
+  CONDITION_DESCRIPTIONS,
   type ActiveCondition,
   type Combat,
   type Combatant,
@@ -32,7 +33,9 @@ export function ConditionBadges({ combat, combatant }: { combat: Combat; combata
       {combatant.conditions.map((cond) => (
         <span
           key={cond.name}
-          title={describeDuration(cond, anchorName(combat, combatant, cond))}
+          title={`${CONDITION_DESCRIPTIONS[cond.name]}
+
+${describeDuration(cond, anchorName(combat, combatant, cond))}`}
           className="rounded bg-violet-900/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-200"
         >
           {conditionLabel(cond)}
@@ -82,7 +85,9 @@ function DurationRow({
   return (
     <li className="flex flex-col gap-1 text-xs" aria-label={`${cond.name} duration`}>
       <div className="flex items-center gap-1.5">
-        <span className="w-24 font-semibold capitalize text-violet-200">{cond.name}</span>
+        <span className="w-24 cursor-help font-semibold capitalize text-violet-200" title={CONDITION_DESCRIPTIONS[cond.name]}>
+          {cond.name}
+        </span>
         <TextInput
           aria-label={`Rounds of ${cond.name}`}
           inputMode="numeric"
@@ -170,7 +175,9 @@ export function ConditionEditor({
             <span
               key={name}
               className="rounded-full border border-dashed border-stone-700 px-2.5 py-0.5 text-xs capitalize text-stone-600"
-              title="Immune (from the stat block)"
+              title={`Immune (from the stat block)
+
+${CONDITION_DESCRIPTIONS[name]}`}
             >
               {name} · immune
             </span>
@@ -178,6 +185,7 @@ export function ConditionEditor({
             <Chip
               key={name}
               on={combatant.conditions.some((x) => x.name === name)}
+              title={CONDITION_DESCRIPTIONS[name]}
               onClick={() => update((c) => toggleCondition(c, combatant.id, name))}
             >
               {name}

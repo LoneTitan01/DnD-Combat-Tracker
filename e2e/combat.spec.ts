@@ -188,6 +188,19 @@ test('combat: players and creatures join and leave mid-combat; drag order; manua
   await row(page, 'Dragon 1').getByRole('button', { name: 'Mark ready' }).click();
   await expect(row(page, 'Dragon 1').getByRole('button', { name: 'Use' })).toBeVisible();
 
+  // Rename a creature from its stat panel: Escape cancels, Enter saves.
+  await row(page, 'Goblin 3').getByText('Goblin 3').first().click();
+  const panelName = page.getByRole('heading', { name: 'Goblin 3' }).getByRole('button');
+  await panelName.click();
+  await page.getByRole('textbox', { name: 'Token name for Goblin 3' }).fill('Blue cap');
+  await page.keyboard.press('Escape');
+  await expect(row(page, 'Goblin 3')).toBeVisible();
+  await panelName.click();
+  await page.getByRole('textbox', { name: 'Token name for Goblin 3' }).fill('Blue cap');
+  await page.keyboard.press('Enter');
+  await expect(row(page, 'Blue cap')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Blue cap' })).toBeVisible();
+
   // Brom leaves.
   await row(page, 'Brom').getByText('Brom').first().click();
   await page.getByRole('button', { name: 'Leaves the combat' }).click();
