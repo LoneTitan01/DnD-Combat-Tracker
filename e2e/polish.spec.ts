@@ -246,3 +246,23 @@ test('condition durations count down on the right turns and announce when they e
   await expect(row(page, 'Goblin 1').getByLabel('Conditions')).toHaveText('restrained');
   await expect(page.getByRole('listitem', { name: 'restrained duration' })).toContainText('until removed');
 });
+
+test('the stat block follows the turn: opens for creatures, closes for players', async ({ page }) => {
+  await runningCombat(page);
+  // Order: Aria 20, Goblin 1 14, Goblin 2 13, Dragon 1 12, Brom 8.
+  const amount = (name: string) => page.getByRole('textbox', { name: `Amount for ${name}` });
+  await expect(page.getByRole('textbox', { name: /^Amount for / })).toHaveCount(0);
+
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('n');
+  await expect(amount('Goblin 1')).toBeVisible();
+  // Opening by itself doesn't grab the keyboard, so N keeps working.
+  await expect(amount('Goblin 1')).not.toBeFocused();
+  await page.keyboard.press('n');
+  await expect(amount('Goblin 2')).toBeVisible();
+  await page.keyboard.press('n');
+  await expect(amount('Dragon 1')).toBeVisible();
+  await page.keyboard.press('n');
+  await expect(currentTurn(page)).toHaveAttribute('aria-label', 'Brom');
+  await expect(page.getByRole('textbox', { name: /^Amount for / })).toHaveCount(0);
+});

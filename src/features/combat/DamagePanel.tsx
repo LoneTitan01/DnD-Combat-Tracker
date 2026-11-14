@@ -60,6 +60,7 @@ export function CreaturePanel({
   update,
   combat,
   focusSignal = 0,
+  autoFocus = true,
   onClose,
 }: {
   combatant: Combatant;
@@ -67,13 +68,17 @@ export function CreaturePanel({
   update: UpdateCombat;
   combat: Combat;
   focusSignal?: number;
+  /** Focus the damage box when the panel opens; off when it opened by itself on a turn change. */
+  autoFocus?: boolean;
   onClose: () => void;
 }) {
   const [amount, setAmount] = useState('');
   const [damageType, setDamageType] = useState<DamageType | null>(null);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => setAmount(''), [c.id]);
-  useEffect(() => input.current?.focus(), [c.id, focusSignal]);
+  useEffect(() => {
+    if (autoFocus) input.current?.focus();
+  }, [c.id, focusSignal]);
 
   const n = /^\d+$/.test(amount.trim()) ? Number(amount) : null;
   const apply = (fn: (amount: number) => void) => {

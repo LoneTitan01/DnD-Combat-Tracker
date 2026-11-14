@@ -201,6 +201,8 @@ export function TrackerView({
   const [selectedId, setSelectedId] = useState<ID | null>(null);
   // Bumped on every row click so the damage box refocuses even when re-selecting the same creature.
   const [focusSignal, setFocusSignal] = useState(0);
+  // False when the panel opened by itself for the current turn, so the damage box doesn't steal the N key.
+  const [focusOnOpen, setFocusOnOpen] = useState(true);
   const [adding, setAdding] = useState<'creature' | 'player' | null>(null);
   const [multi, setMulti] = useState(false);
   const [targets, setTargets] = useState<Targets>({});
@@ -218,6 +220,12 @@ export function TrackerView({
     setExpired(combat.log.slice(logMark.current).filter((e) => e.type === 'conditionEnded'));
     logMark.current = combat.log.length;
   }, [turnKey]);
+  // Follow the turn: show the acting creature's stat block, close it on a player's turn.
+  const current = combat.combatants[combat.turnIndex];
+  useEffect(() => {
+    setFocusOnOpen(false);
+    setSelectedId(current?.kind === 'creature' ? current.id : null);
+  }, [combat.round, current?.id]);
   const nameOf = (id: ID) => combat.combatants.find((x) => x.id === id)?.tokenName ?? 'Removed combatant';
 
   const toggleMulti = () => {
@@ -268,7 +276,7 @@ export function TrackerView({
             aria-pressed={multi}
             aria-keyshortcuts="M"
             title="Damage several creatures at once (M)"
-            className={multi ? 'border-sky-500 bg-sky-900/60' : ''}
+            className={multi ? 'border-sky-400! bg-sky-600! text-white! hover:bg-sky-500!' : ''}
             onClick={toggleMulti}
           >
             Multi-target
@@ -341,6 +349,7 @@ export function TrackerView({
                   // Choosing a combatant also takes the side panel back from the reinforcements picker.
                   if (adding === 'creature') setAdding(null);
                   setSelectedId(c.id);
+                  setFocusOnOpen(true);
                   setFocusSignal((n) => n + 1);
                 }}
                 onDrop={(from) => update((cb) => moveCombatant(cb, from, i))}
@@ -377,6 +386,7 @@ export function TrackerView({
               update={update}
               combat={combat}
               focusSignal={focusSignal}
+              autoFocus={focusOnOpen}
               onClose={() => setSelectedId(null)}
             />
           ) : selected?.kind === 'player' ? (
