@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Combat } from '../models';
+import { setCreatureDisplay } from './combat';
 import { tableView } from './table';
 import { makeCombat, makeCombatant } from './testUtils';
 
@@ -27,8 +28,8 @@ describe('tableView', () => {
     expect(tableView(example(0))).toEqual({
       status: 'active',
       round: 2,
-      current: { kind: 'player', names: ['Aria', 'Brom'] },
-      upNext: { kind: 'creature', names: ['Goblin 2'], newRound: false },
+      current: { kind: 'player', names: ['Aria', 'Brom'], creatures: [null, null] },
+      upNext: { kind: 'creature', names: ['Goblin 2'], creatures: [null], newRound: false },
     });
   });
 
@@ -82,5 +83,35 @@ describe('tableView', () => {
   it('has no up next when the current combatant is the only one alive', () => {
     const c = makeCombat([makeCombatant({ tokenName: 'Lich' })]);
     expect(tableView(c)).toMatchObject({ current: { names: ['Lich'] }, upNext: null });
+  });
+});
+
+describe('tableView kind of creature', () => {
+  const boar = () => makeCombatant({ tokenName: 'Tusker', templateId: 'tpl-boar', creatureName: 'Boar' });
+  const current = (c: Combat, templates?: Parameters<typeof tableView>[1]) => {
+    const v = tableView(c, templates);
+    return v.status === 'active' ? v.current.creatures : undefined;
+  };
+
+  it("shows the stat block's name, looking it up for combatants added before it was snapshotted", () => {
+    expect(current(makeCombat([boar()]))).toEqual(['Boar']);
+    const old = makeCombatant({ tokenName: 'Grunt', templateId: 'tpl-orc' });
+    expect(current(makeCombat([old]))).toEqual([null]);
+    expect(current(makeCombat([old]), new Map([['tpl-orc', { name: 'Orc' }]]))).toEqual(['Orc']);
+  });
+
+  it('shows the fake only while the toggle is on, and nothing for a blank fake', () => {
+    const b = boar();
+    let c = setCreatureDisplay(makeCombat([b]), b.id, { fakeName: 'Orc' });
+    expect(current(c)).toEqual(['Boar']);
+    c = setCreatureDisplay(c, b.id, { showFakeName: true });
+    expect(current(c)).toEqual(['Orc']);
+    expect(current(setCreatureDisplay(c, b.id, { fakeName: '  ' }))).toEqual([null]);
+    expect(setCreatureDisplay(c, b.id, { showFakeName: true })).toBe(c);
+  });
+
+  it('never shows one for players', () => {
+    const p = makeCombatant({ kind: 'player', tokenName: 'Aria', creatureName: 'Elf' });
+    expect(current(makeCombat([p]))).toEqual([null]);
   });
 });

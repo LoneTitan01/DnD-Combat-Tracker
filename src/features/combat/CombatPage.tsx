@@ -69,7 +69,7 @@ export function CombatPage() {
   const navigate = useNavigate();
   const [combat, update, saving] = useCombat(id);
   const templates = useTemplates();
-  useTablePublisher(combat);
+  useTablePublisher(combat, templates);
 
   if (combat === undefined) return null;
   if (combat === null) {

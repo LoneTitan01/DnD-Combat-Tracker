@@ -218,6 +218,34 @@ export function pendingPrompts(c: Combatant): AbilityPrompt[] {
     }));
 }
 
+// ---------- notes ----------
+
+/** Sets a combatant's DM notes. Not logged and not undoable; blank notes are removed. */
+export function setCombatantNotes(combat: Combat, id: ID, notes: string): Combat {
+  const c = findCombatant(combat, id);
+  if (!c || (c.notes ?? '') === notes) return combat;
+  return updateCombatant(combat, id, (x) => {
+    const { notes: _old, ...rest } = x;
+    return notes.trim() ? { ...rest, notes } : rest;
+  });
+}
+
+/** Sets what kind of creature the player view shows: the real one (its stat block's name) or a fake. Not logged. */
+export function setCreatureDisplay(
+  combat: Combat,
+  id: ID,
+  change: { fakeName?: string; showFakeName?: boolean },
+): Combat {
+  const c = findCombatant(combat, id);
+  if (!c) return combat;
+  if (
+    (change.fakeName === undefined || change.fakeName === (c.fakeName ?? '')) &&
+    (change.showFakeName === undefined || change.showFakeName === !!c.showFakeName)
+  )
+    return combat;
+  return updateCombatant(combat, id, (x) => ({ ...x, ...change }));
+}
+
 // ---------- undo ----------
 
 const HP_TYPES = new Set(['damage', 'heal', 'tempHP']);

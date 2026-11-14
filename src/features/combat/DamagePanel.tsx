@@ -11,7 +11,9 @@ import {
 } from '../../logic';
 import { DAMAGE_TYPES, type Combat, type Combatant, type CreatureTemplate, type DamageModifier, type DamageType } from '../../models';
 import { StatBlock } from '../bestiary/StatBlock';
+import { CombatNotes } from './CombatNotes';
 import { ConditionEditor } from './Conditions';
+import { CreatureDisplay } from './CreatureDisplay';
 import type { UpdateCombat } from './useCombat';
 
 export function HPBar({ c }: { c: Combatant }) {
@@ -183,6 +185,8 @@ export function CreaturePanel({
           Enter applies the highlighted damage. Pick a damage type to use the stat block's resistances. Resisted rounds down.
         </p>
         <ConditionEditor combat={combat} combatant={c} template={template} update={update} />
+        <CreatureDisplay combatant={c} template={template} update={update} />
+        <CombatNotes key={c.id} combatant={c} update={update} />
       </Card>
       {template ? (
         <StatBlock creature={template} />

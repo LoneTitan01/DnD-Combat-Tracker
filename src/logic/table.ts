@@ -1,8 +1,8 @@
-import type { Combat, Combatant, CombatantKind } from '../models';
+import type { Combat, Combatant, CombatantKind, CreatureTemplate, ID } from '../models';
 
 /**
- * What the player-facing page shows. Deliberately minimal: names and round only, never HP,
- * stats or recharge state. Dead creatures never appear.
+ * What the player-facing page shows. Deliberately minimal: names, kinds of creature and round only,
+ * never HP, stats or recharge state. Dead creatures never appear.
  */
 export type TableView =
   | { status: 'waiting' }
@@ -18,6 +18,20 @@ export type TableView =
 export interface TableGroup {
   kind: CombatantKind;
   names: string[];
+  /** Parallel to `names`: the kind of creature players see (e.g. "Boar"), or null (players, or nothing to show). */
+  creatures: Array<string | null>;
+}
+
+/** Looks up a stat block's name, for combatants added before it was snapshotted. */
+export type TemplateNames = ReadonlyMap<ID, Pick<CreatureTemplate, 'name'>>;
+
+/** The kind of creature the players see: the fake one while the DM has it on, otherwise the real one. */
+export function shownCreature(c: Combatant, templates?: TemplateNames): string | null {
+  if (c.kind !== 'creature') return null;
+  const t = c.showFakeName
+    ? c.fakeName
+    : (c.creatureName ?? (c.templateId ? templates?.get(c.templateId)?.name : undefined));
+  return t?.trim() || null;
 }
 
 const alive = (c: Combatant | undefined): c is Combatant => !!c && !c.isDead;
@@ -43,7 +57,7 @@ function groupFrom(list: readonly Combatant[], start: number, exclude: ReadonlyS
   return group;
 }
 
-export function tableView(combat: Combat | null | undefined): TableView {
+export function tableView(combat: Combat | null | undefined, templates?: TemplateNames): TableView {
   if (!combat || combat.status === 'staged') return { status: 'waiting' };
   if (combat.status === 'ended') return { status: 'over' };
 
@@ -54,6 +68,7 @@ export function tableView(combat: Combat | null | undefined): TableView {
   const current: TableGroup = {
     kind: list[combat.turnIndex]?.kind ?? 'creature',
     names: currentIdx.map((i) => list[i]!.tokenName),
+    creatures: currentIdx.map((i) => shownCreature(list[i]!, templates)),
   };
 
   // Walk forward from the end of the current group to the next living combatant outside it.
@@ -68,6 +83,7 @@ export function tableView(combat: Combat | null | undefined): TableView {
     upNext = {
       kind: list[idx]!.kind,
       names: group.map((i) => list[i]!.tokenName),
+      creatures: group.map((i) => shownCreature(list[i]!, templates)),
       newRound: combat.turnIndex + step >= n,
     };
     break;

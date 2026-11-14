@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { tableView, type TableView } from '../../logic';
+import { tableView, type TableView, type TemplateNames } from '../../logic';
 import type { Combat, ID } from '../../models';
 
 /**
@@ -23,10 +23,12 @@ export function openTableWindow(combatId: ID): void {
  * For the DM combat screen: publishes the table view whenever the combat changes,
  * and answers a freshly opened player page that says hello.
  */
-export function useTablePublisher(combat: Combat | null | undefined): void {
+export function useTablePublisher(combat: Combat | null | undefined, templates?: TemplateNames): void {
   const channel = useRef<BroadcastChannel | null>(null);
   const latest = useRef(combat);
   latest.current = combat;
+  const latestTemplates = useRef(templates);
+  latestTemplates.current = templates;
 
   useEffect(() => {
     const ch = openChannel();
@@ -34,7 +36,7 @@ export function useTablePublisher(combat: Combat | null | undefined): void {
     if (!ch) return;
     ch.onmessage = (e: MessageEvent<TableMessage>) => {
       const c = latest.current;
-      if (e.data?.type === 'hello' && c) ch.postMessage({ type: 'view', combatId: c.id, view: tableView(c) });
+      if (e.data?.type === 'hello' && c) ch.postMessage({ type: 'view', combatId: c.id, view: tableView(c, latestTemplates.current) });
     };
     return () => {
       ch.close();
@@ -43,6 +45,6 @@ export function useTablePublisher(combat: Combat | null | undefined): void {
   }, []);
 
   useEffect(() => {
-    if (combat) channel.current?.postMessage({ type: 'view', combatId: combat.id, view: tableView(combat) });
-  }, [combat]);
+    if (combat) channel.current?.postMessage({ type: 'view', combatId: combat.id, view: tableView(combat, templates) });
+  }, [combat, templates]);
 }

@@ -25,9 +25,10 @@ export function TablePage() {
     const initial = combatId
       ? db.combats.get(combatId)
       : db.combats.where('status').equals('active').reverse().sortBy('updatedAt').then((l) => l[0]);
-    initial.then(
-      (c) => {
-        if (!cancelled && !receivedLive) setView(tableView(c));
+    // Stat block names fill in the kind of creature for combatants added before it was snapshotted.
+    Promise.all([initial, db.creatures.toArray()]).then(
+      ([c, creatures]) => {
+        if (!cancelled && !receivedLive) setView(tableView(c, new Map(creatures.map((t) => [t.id, t]))));
       },
       () => {},
     );
@@ -75,6 +76,7 @@ function DemoTable() {
       conditions: [],
       xp: 0,
       abilityStates: [],
+      ...(i === 2 ? { creatureName: 'Goblin' } : i === 4 ? { creatureName: 'Hag', showFakeName: true, fakeName: 'Old woman' } : {}),
     })),
   }));
   useEffect(() => {
@@ -93,9 +95,23 @@ function Names({ group, className }: { group: TableGroup; className: string }) {
       {group.names.map((name, i) => (
         <li key={`${name}-${i}`} className="leading-tight break-words">
           {name}
+          <CreatureKind kind={group.creatures[i]} className="mt-2 text-[clamp(1.25rem,3vw,2.5rem)]" />
         </li>
       ))}
     </ul>
+  );
+}
+
+/** What kind of creature players see (real or the DM's fake), under its token name. */
+function CreatureKind({ kind, className }: { kind: string | null | undefined; className: string }) {
+  if (!kind) return null;
+  return (
+    <span
+      className={`block font-sans font-semibold tracking-wide text-stone-300 ${className}`}
+      aria-label="Creature"
+    >
+      {kind}
+    </span>
   );
 }
 
@@ -139,12 +155,16 @@ export function TableScreen({ view }: { view: TableView }) {
             <span className="text-[clamp(1rem,2vw,1.75rem)] font-bold uppercase tracking-[0.3em] text-amber-400">
               Up next
             </span>
-            <span
-              className={`font-display text-[clamp(2rem,5vw,4rem)] font-bold leading-tight ${
-                upNext.kind === 'creature' ? 'text-red-300' : 'text-white'
-              }`}
-            >
-              {upNext.names.join(', ')}
+            <span className="flex flex-col">
+              <span
+                className={`font-display text-[clamp(2rem,5vw,4rem)] font-bold leading-tight ${
+                  upNext.kind === 'creature' ? 'text-red-300' : 'text-white'
+                }`}
+              >
+                {upNext.names.join(', ')}
+              </span>
+              {/* A creature is always alone in its group, so one line is enough. */}
+              <CreatureKind kind={upNext.creatures.find(Boolean)} className="text-[clamp(1rem,2vw,1.75rem)]" />
             </span>
             {upNext.newRound && (
               <span className="rounded-full border-2 border-stone-500 px-4 py-1 text-[clamp(0.9rem,1.6vw,1.4rem)] font-semibold text-stone-300">

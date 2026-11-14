@@ -60,6 +60,7 @@ export function createCreatureCombatant(
     conditions: [],
     xp: template.xp,
     abilityStates: initialAbilityStates(template.actions),
+    creatureName: template.name,
   };
   if (opts.rollInitiative) c.initiative = rollInitiative(c, rng);
   return c;

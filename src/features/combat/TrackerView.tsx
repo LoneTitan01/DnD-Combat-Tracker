@@ -16,6 +16,7 @@ import {
   removeCombatant,
 } from '../../logic';
 import type { Combat, Combatant, CreatureTemplate, ID, LogEntry } from '../../models';
+import { CombatNotes } from './CombatNotes';
 import { ConditionBadges, ConditionEditor } from './Conditions';
 import { MultiTargetPanel, type Targets } from './MultiTarget';
 import { CreaturePicker } from '../bestiary/CreaturePicker';
@@ -114,6 +115,16 @@ function Row({
           {c.kind === 'player' && <span className="ml-2 text-xs text-sky-300">player</span>}
           {c.isDead && <span className="ml-2 text-xs text-red-400">dead</span>}
           {duplicate && <span className="ml-2 text-xs text-amber-400">duplicate name</span>}
+          {c.showFakeName && (
+            <span className="ml-2 text-xs text-violet-300" title="Players see a fake creature">
+              🎭 {c.fakeName?.trim() ? `shown as ${c.fakeName.trim()}` : 'creature hidden'}
+            </span>
+          )}
+          {c.notes && (
+            <span className="ml-2 text-xs text-stone-400" title={c.notes} aria-label={`Notes: ${c.notes}`}>
+              📝
+            </span>
+          )}
           <ConditionBadges combat={combat} combatant={c} />
         </div>
         {c.kind === 'creature' && <HPBar c={c} />}
@@ -373,6 +384,7 @@ export function TrackerView({
               <h2 className="font-display text-xl font-bold">{selected.tokenName}</h2>
               <p className="text-sm text-stone-400">Players track their own HP and AC.</p>
               <ConditionEditor combat={combat} combatant={selected} update={update} />
+              <CombatNotes key={selected.id} combatant={selected} update={update} />
               <div>
                 <Button
                   onClick={() => {

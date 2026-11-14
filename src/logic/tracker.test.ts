@@ -9,6 +9,7 @@ import {
   resolveRolledRecharge,
   resolveThresholdRoll,
   reviveCombatant,
+  setCombatantNotes,
   tempHPCombatant,
   undoLogEntry,
   useAbility,
@@ -157,5 +158,20 @@ describe('describeLogEntry', () => {
       'Goblin 1: Fire Breath is ready',
     ]);
     expect(text(t)).toEqual(['Goblin 1 uses Fire Breath', 'Goblin 1: Fire Breath recharge roll 3']);
+  });
+});
+
+describe('combatant notes', () => {
+  it('sets, clears, and survives undoing damage', () => {
+    const g = makeCombatant({ currentHP: 10, maxHP: 10 });
+    let c = makeCombat([g]);
+    expect(setCombatantNotes(c, g.id, '')).toBe(c); // no change
+    c = damageCombatant(c, g.id, 3, 'normal');
+    c = setCombatantNotes(c, g.id, 'Flees below 5 HP');
+    expect(c.combatants[0]!.notes).toBe('Flees below 5 HP');
+    c = undoLogEntry(c, c.log[0]!.id);
+    expect(c.combatants[0]!.notes).toBe('Flees below 5 HP');
+    c = setCombatantNotes(c, g.id, '   ');
+    expect('notes' in c.combatants[0]!).toBe(false);
   });
 });

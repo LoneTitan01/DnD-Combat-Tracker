@@ -203,6 +203,14 @@ export interface Combatant {
   /** XP awarded when this creature dies. Snapshot of the template so later edits don't change the tally. */
   xp: number;
   abilityStates: AbilityState[];
+  /** DM-only notes for this combatant in this combat (tactics, grudges, what it's carrying). Never shown on the table view. */
+  notes?: string;
+  /** What kind of creature this is: its stat block's name (e.g. "Boar"), snapshotted when added. Missing on older combats. */
+  creatureName?: string;
+  /** What the player view shows as the kind of creature while `showFakeName` is on. Blank = nothing shown. */
+  fakeName?: string;
+  /** Player view shows `fakeName` instead of the real kind of creature. */
+  showFakeName?: boolean;
 }
 
 export type DamageModifier = 'normal' | 'resisted' | 'vulnerable' | 'immune';
