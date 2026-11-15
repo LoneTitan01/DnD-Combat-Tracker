@@ -246,11 +246,6 @@ function splitRecharge(name: string): { name: string; minRoll?: number } {
   return { name: (name.slice(0, m.index) + name.slice(m.index + m[0].length)).trim(), minRoll };
 }
 
-function parseNumber(s: string): number | undefined {
-  const m = /\d[\d,]*/.exec(s);
-  return m ? Number(m[0].replace(/,/g, '')) : undefined;
-}
-
 /** Turns a pasted stat block into a creature. Never throws: missing parts get defaults and a warning. */
 export function parseCreatureText(text: string): Parsed<CreatureTemplate> {
   const t = blankCreature();

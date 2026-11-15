@@ -85,6 +85,9 @@ export function SpellsPage() {
         >
           {filtered ? `Export ${shown.length} shown` : 'Export all'}
         </Button>
+        <Button onClick={() => navigate('/spells/bulk')} title="Paste several at once from a PDF, a website or your notes">
+          Bulk add
+        </Button>
         <Button variant="primary" onClick={() => navigate('/spells/new')}>
           New spell
         </Button>
