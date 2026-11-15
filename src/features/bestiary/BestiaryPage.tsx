@@ -70,6 +70,9 @@ export function BestiaryPage() {
         >
           {filtered ? `Export ${shown.length} shown` : 'Export all'}
         </Button>
+        <Button onClick={() => navigate('/bestiary/bulk')} title="Paste several at once from a PDF, a website or your notes">
+          Bulk add
+        </Button>
         <Button variant="primary" onClick={() => navigate('/bestiary/new')}>
           New stat block
         </Button>

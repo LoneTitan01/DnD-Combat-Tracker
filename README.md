@@ -9,12 +9,14 @@ A local-first web app for preparing D&D 5e encounters and running them at the ta
 - Actions are grouped as actions, bonus actions, reactions and legendary actions. Any non-legendary action can recharge: on a fixed number of turns, a rolled number of turns, or Recharge X–6.
 - The editor fills in XP from CR and the CON bonus on hit dice, and checks the stat block before saving.
 - Search and filter by name, type and CR.
+- **Bulk add**: paste several stat blocks (2014 or 2024 layout, from a PDF, a website or your notes), one per box. Each is read as well as it can be, then you review them in an editable carousel, with warnings for anything it couldn't find, and approve them one at a time or all at once. Spells its text names are linked automatically.
 - Export and import JSON backups, either all stat blocks or a selection. Imports fill in missing fields and replace stat blocks with the same id.
 - Deleting a stat block warns about any encounters that use it.
 
 ### Spells
 - Comes with the 339 spells of the SRD 5.2 (the free part of the 2024 rules). Edit or delete them like your own spells. **Restore SRD spells** brings back any you deleted.
 - Create spells, link them to stat blocks, and hover a spell's name in a stat block to see its text.
+- **Bulk add** spells the same way: paste one per box, review and fix each, then approve.
 
 ### Party
 - A roster of players with level and initiative bonus, plus warnings about duplicate names.
@@ -95,7 +97,7 @@ Sync needs a Google OAuth client ID. It isn't a secret, because it only works fr
   - `conditions.ts`: adding/removing conditions, durations and their countdown.
   - `staging.ts`: encounter → staged combat, token names, reinforcements, joining players, start combat.
   - `table.ts`: the player-facing view (order, current turn, Up Next) with nothing secret in it.
-  - `creature.ts`, `encounter.ts`, `party.ts`: stat block editing, validation and import; encounter building and tags; the party roster.
+  - `creature.ts`, `encounter.ts`, `party.ts`: stat block editing, validation and import; `parseText.ts` reads pasted stat blocks and spells; encounter building and tags; the party roster.
   - `xp.ts`, `dice.ts`: CR → XP, encounter multiplier and difficulty, dice parsing and rolling, HP from hit dice.
 - `src/db/`: Dexie tables (creatures, players, encounters, combats, deletions), schema migrations, JSON backup, and the sync merge into local data.
 - `src/sync/`: Google sync. `google.ts` handles Google sign-in and the Drive file, `engine.ts` does one download → merge → upload round, and `manager.ts` handles when to sync and the status shown in the UI. The merge rules are in `src/logic/sync.ts`.
