@@ -23,12 +23,13 @@ import {
   ACTION_KINDS,
   CONDITIONS,
   DAMAGE_TYPES,
+  NONMAGICAL,
+  DEFENSE_TYPES,
   DIE_TYPES,
   SIZES,
   type Action,
   type ActionKind,
   type CreatureTemplate,
-  type DamageType,
   type DieType,
   type Recharge,
   type Size,
@@ -237,12 +238,20 @@ function ActionsEditor({
   );
 }
 
-function DamageChips({ value, onChange }: { value: DamageType[]; onChange: (v: DamageType[]) => void }) {
+function DamageChips<T extends string>({
+  value,
+  onChange,
+  options = DAMAGE_TYPES as readonly string[] as readonly T[],
+}: {
+  value: T[];
+  onChange: (v: T[]) => void;
+  options?: readonly T[];
+}) {
   return (
     <div className="flex flex-wrap gap-1.5">
-      {DAMAGE_TYPES.map((d) => (
+      {options.map((d) => (
         <Chip key={d} on={value.includes(d)} onClick={() => onChange(toggle(value, d))}>
-          {d}
+          {d === NONMAGICAL ? 'nonmagical weapons (B/P/S)' : d}
         </Chip>
       ))}
     </div>
@@ -404,10 +413,10 @@ export function CreatureEditor() {
               <DamageChips value={t.damageVulnerabilities} onChange={(v) => set({ damageVulnerabilities: v })} />
             </Field>
             <Field label="Damage resistances">
-              <DamageChips value={t.damageResistances} onChange={(v) => set({ damageResistances: v })} />
+              <DamageChips value={t.damageResistances} options={DEFENSE_TYPES} onChange={(v) => set({ damageResistances: v })} />
             </Field>
             <Field label="Damage immunities">
-              <DamageChips value={t.damageImmunities} onChange={(v) => set({ damageImmunities: v })} />
+              <DamageChips value={t.damageImmunities} options={DEFENSE_TYPES} onChange={(v) => set({ damageImmunities: v })} />
             </Field>
             <Field label="Condition immunities">
               <div className="flex flex-wrap gap-1.5">

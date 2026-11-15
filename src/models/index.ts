@@ -21,6 +21,19 @@ export const DAMAGE_TYPES = [
 ] as const;
 export type DamageType = (typeof DAMAGE_TYPES)[number];
 
+/** Bludgeoning, piercing and slashing: the types "nonmagical weapons" resistance covers. */
+export const WEAPON_DAMAGE_TYPES: readonly DamageType[] = ['bludgeoning', 'piercing', 'slashing'];
+
+/** Resistance or immunity to bludgeoning, piercing and slashing from nonmagical weapons or sources. */
+export const NONMAGICAL = 'nonmagical';
+export const DEFENSE_TYPES = [...DAMAGE_TYPES, NONMAGICAL] as const;
+export type DefenseType = (typeof DEFENSE_TYPES)[number];
+
+/** How a resistance or immunity reads in a stat block. */
+export function defenseLabel(r: DefenseType): string {
+  return r === NONMAGICAL ? 'bludgeoning, piercing, and slashing from nonmagical attacks' : r;
+}
+
 export const SIZES = ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'] as const;
 export type Size = (typeof SIZES)[number];
 
@@ -151,9 +164,9 @@ export interface CreatureTemplate {
   abilities: AbilityScores;
   saves: string;
   skills: string;
-  damageResistances: DamageType[];
+  damageResistances: DefenseType[];
   damageVulnerabilities: DamageType[];
-  damageImmunities: DamageType[];
+  damageImmunities: DefenseType[];
   conditionImmunities: string[];
   senses: string;
   languages: string;

@@ -1,6 +1,6 @@
 import type { CreatureTemplate } from '../models';
 import { describe, expect, it } from 'vitest';
-import { applyDamage, computeApplied, grantTempHP, heal, modifierFor, revive } from './damage';
+import { applyDamage, computeApplied, grantTempHP, heal, magicSplit, modifierFor, revive } from './damage';
 import { canUndo, damageCombatant, damageMany, defeatedXP, describeLogEntry, healCombatant, undoLogEntry } from './combat';
 import { makeCombat, makeCombatant } from './testUtils';
 
@@ -128,6 +128,35 @@ describe('logged damage, XP and undo', () => {
     ]);
     expect(combat.combatants.map((x) => x.currentHP)).toEqual([13, 17, 6]);
     expect(combat.log).toHaveLength(3);
+  });
+});
+
+describe('nonmagical weapon resistance and immunity', () => {
+  type D = Pick<CreatureTemplate, 'damageResistances' | 'damageVulnerabilities' | 'damageImmunities'>;
+  const resists: D = { damageResistances: ['nonmagical', 'piercing'], damageVulnerabilities: ['slashing'], damageImmunities: [] };
+  const immune: D = { damageResistances: ['slashing'], damageVulnerabilities: [], damageImmunities: ['nonmagical', 'piercing'] };
+
+  it('resistance: magical is normal, nonmagical halved', () => {
+    expect(magicSplit(resists, 'bludgeoning')).toEqual({ magical: 'normal', nonmagical: 'resisted' });
+  });
+  it('resistance cancels a vulnerability for nonmagical hits', () => {
+    expect(magicSplit(resists, 'slashing')).toEqual({ magical: 'vulnerable', nonmagical: 'normal' });
+  });
+  it('immunity: magical follows the stat block, nonmagical is 0', () => {
+    expect(magicSplit(immune, 'bludgeoning')).toEqual({ magical: 'normal', nonmagical: 'immune' });
+    expect(magicSplit(immune, 'slashing')).toEqual({ magical: 'resisted', nonmagical: 'immune' });
+  });
+  it('no split when both cases match, or the type is not weapon damage', () => {
+    expect(magicSplit(resists, 'piercing')).toBeNull(); // resists it outright
+    expect(magicSplit(immune, 'piercing')).toBeNull(); // immune outright
+    expect(magicSplit(resists, 'fire')).toBeNull();
+    expect(magicSplit(resists, null)).toBeNull();
+    expect(magicSplit(undefined, 'bludgeoning')).toBeNull();
+    expect(magicSplit({ ...resists, damageResistances: [] }, 'bludgeoning')).toBeNull();
+  });
+  it('the stat block suggestion is the magical case', () => {
+    expect(modifierFor(resists, 'bludgeoning')).toBe('normal');
+    expect(modifierFor(immune, 'bludgeoning')).toBe('normal');
   });
 });
 

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ACTION_KIND_LABELS, abilityMod, formatHitDice, formatMod, rechargeLabel } from '../../logic';
-import { ABILITIES, ACTION_KINDS, type CreatureTemplate } from '../../models';
+import { ABILITIES, ACTION_KINDS, defenseLabel, type CreatureTemplate } from '../../models';
 
 function Line({ label, children }: { label: string; children: ReactNode }) {
   if (children === '' || children === null || children === undefined) return null;
@@ -64,8 +64,8 @@ export function StatBlock({ creature: t }: { creature: CreatureTemplate }) {
       <Line label="Saving Throws">{t.saves}</Line>
       <Line label="Skills">{t.skills}</Line>
       <Line label="Damage Vulnerabilities">{list(t.damageVulnerabilities)}</Line>
-      <Line label="Damage Resistances">{list(t.damageResistances)}</Line>
-      <Line label="Damage Immunities">{list(t.damageImmunities)}</Line>
+      <Line label="Damage Resistances">{list(t.damageResistances.map(defenseLabel))}</Line>
+      <Line label="Damage Immunities">{list(t.damageImmunities.map(defenseLabel))}</Line>
       <Line label="Condition Immunities">{list(t.conditionImmunities)}</Line>
       <Line label="Senses">{t.senses}</Line>
       <Line label="Languages">{t.languages}</Line>

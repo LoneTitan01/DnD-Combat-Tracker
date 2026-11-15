@@ -4,13 +4,14 @@ import {
   computeApplied,
   damageCombatant,
   healCombatant,
+  magicSplit,
   modifierFor,
   removeCombatant,
   renameToken,
   reviveCombatant,
   tempHPCombatant,
 } from '../../logic';
-import { DAMAGE_TYPES, type Combat, type Combatant, type CreatureTemplate, type DamageModifier, type DamageType } from '../../models';
+import { DAMAGE_TYPES, defenseLabel, type Combat, type Combatant, type CreatureTemplate, type DamageModifier, type DamageType } from '../../models';
 import { StatBlock } from '../bestiary/StatBlock';
 import { CombatNotes } from './CombatNotes';
 import { ConditionEditor } from './Conditions';
@@ -149,6 +150,12 @@ export function CreaturePanel({
   };
   // The stat block decides the modifier for a typed hit; the buttons can still override it.
   const suggested = modifierFor(template, damageType);
+  // Resists or ignores nonmagical weapons: the magical hit is purple, the nonmagical one orange.
+  const split = magicSplit(template, damageType);
+  const variantFor = (mod: DamageModifier) =>
+    split?.magical === mod ? 'magic' : split?.nonmagical === mod ? 'mundane' : mod === suggested ? 'primary' : 'secondary';
+  const labelFor = (mod: DamageModifier, label: string) =>
+    split?.magical === mod ? `${label} · magical` : split?.nonmagical === mod ? `${label} · nonmagical` : label;
   const hit = (mod: DamageModifier) =>
     apply((a) => {
       update((cb) => damageCombatant(cb, c.id, a, mod, damageType));
@@ -156,9 +163,9 @@ export function CreaturePanel({
     });
   const hints = template
     ? [
-        template.damageResistances.length && `Resists ${template.damageResistances.join(', ')}`,
+        template.damageResistances.length && `Resists ${template.damageResistances.map(defenseLabel).join(', ')}`,
         template.damageVulnerabilities.length && `Vulnerable to ${template.damageVulnerabilities.join(', ')}`,
-        template.damageImmunities.length && `Immune to ${template.damageImmunities.join(', ')}`,
+        template.damageImmunities.length && `Immune to ${template.damageImmunities.map(defenseLabel).join(', ')}`,
       ].filter(Boolean)
     : [];
 
@@ -206,19 +213,29 @@ export function CreaturePanel({
           {MODS.map(({ mod, label }) => (
             <Button
               key={mod}
-              variant={mod === suggested ? 'primary' : 'secondary'}
+              variant={variantFor(mod)}
               disabled={n === null}
               title={n !== null ? `${computeApplied(n, mod)} damage` : undefined}
               onClick={() => hit(mod)}
             >
-              {label}
+              {labelFor(mod, label)}
             </Button>
           ))}
         </div>
         {damageType && template && (
           <p className="text-xs text-stone-400" role="status" aria-label="Damage type suggestion">
-            <span className="capitalize">{damageType}</span>: {c.tokenName} {SUGGESTION_TEXT[suggested]} per the stat block.
-            Enter applies this.
+            <span className="capitalize">{damageType}</span>:{' '}
+            {split ? (
+              <>
+                {c.tokenName} {SUGGESTION_TEXT[split.magical]} from a <span className="text-purple-300">magical</span> source
+                and {SUGGESTION_TEXT[split.nonmagical]} from a <span className="text-orange-300">nonmagical</span> one. Enter
+                applies the magical one.
+              </>
+            ) : (
+              <>
+                {c.tokenName} {SUGGESTION_TEXT[suggested]} per the stat block. Enter applies this.
+              </>
+            )}
           </p>
         )}
         <div className="flex flex-wrap gap-2">

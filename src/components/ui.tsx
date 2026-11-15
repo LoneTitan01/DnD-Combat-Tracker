@@ -120,12 +120,16 @@ export function PageHeader({ title, children }: { title: string; children?: Reac
   );
 }
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'magic' | 'mundane';
 const VARIANTS: Record<Variant, string> = {
   primary: 'bg-amber-500 text-stone-950 hover:bg-amber-400 font-semibold',
   secondary: 'bg-stone-800 text-stone-100 hover:bg-stone-700 border border-stone-700',
   danger: 'bg-red-900/60 text-red-100 hover:bg-red-800 border border-red-800',
   ghost: 'text-stone-400 hover:text-stone-100 hover:bg-stone-800',
+  /** Damage from a magical source, when the target resists only nonmagical weapons. */
+  magic: 'bg-purple-600 text-white hover:bg-purple-500 font-semibold',
+  /** Damage from a nonmagical source, when the target resists only nonmagical weapons. */
+  mundane: 'bg-orange-600 text-stone-950 hover:bg-orange-500 font-semibold',
 };
 
 export function Button({

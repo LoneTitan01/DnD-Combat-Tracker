@@ -1,4 +1,4 @@
-import type { Combatant, CreatureTemplate, DamageModifier, DamageType } from '../models';
+import { NONMAGICAL, WEAPON_DAMAGE_TYPES, type Combatant, type CreatureTemplate, type DamageModifier, type DamageType } from '../models';
 
 /** normal: d · resisted: floor(d / 2) (5e rounds down) · vulnerable: 2d · immune: 0 */
 export function computeApplied(raw: number, modifier: DamageModifier): number {
@@ -28,6 +28,30 @@ export function modifierFor(t: Defenses | undefined, type: DamageType | null | u
   const resists = t.damageResistances.includes(type);
   const vulnerable = t.damageVulnerabilities.includes(type);
   return resists === vulnerable ? 'normal' : resists ? 'resisted' : 'vulnerable';
+}
+
+export interface MagicSplit {
+  /** The modifier for a hit from a magical weapon or source (what the stat block suggests). */
+  magical: DamageModifier;
+  /** The modifier for a hit from a nonmagical weapon or source. */
+  nonmagical: DamageModifier;
+}
+
+/**
+ * When the creature resists or is immune to nonmagical weapons and the damage is bludgeoning,
+ * piercing or slashing, the modifier depends on whether the source is magical. Returns both
+ * modifiers, or null when they'd be the same.
+ */
+export function magicSplit(t: Defenses | undefined, type: DamageType | null | undefined): MagicSplit | null {
+  if (!t || !type || !WEAPON_DAMAGE_TYPES.includes(type)) return null;
+  const magical = modifierFor(t, type);
+  let nonmagical = magical;
+  if (t.damageImmunities.includes(NONMAGICAL)) nonmagical = 'immune';
+  else if (t.damageResistances.includes(NONMAGICAL) && magical !== 'immune') {
+    // Resistance doesn't stack with itself, and cancels a vulnerability (as in modifierFor).
+    nonmagical = magical === 'vulnerable' ? 'normal' : 'resisted';
+  }
+  return nonmagical === magical ? null : { magical, nonmagical };
 }
 
 export interface DamageResult {

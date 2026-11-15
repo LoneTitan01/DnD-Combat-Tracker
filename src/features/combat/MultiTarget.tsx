@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Card, Select, TextInput } from '../../components/ui';
-import { computeApplied, damageMany, modifierFor } from '../../logic';
-import { DAMAGE_TYPES, type Combat, type CreatureTemplate, type DamageModifier, type DamageType, type ID } from '../../models';
+import { computeApplied, damageMany, magicSplit, modifierFor } from '../../logic';
+import { DAMAGE_TYPES, defenseLabel, type Combat, type CreatureTemplate, type DamageModifier, type DamageType, type ID } from '../../models';
 import type { UpdateCombat } from './useCombat';
 
 /** Per-target modifier override; null follows the stat block for the chosen damage type. */
@@ -112,19 +112,32 @@ export function MultiTargetPanel({
           {chosen.map((c) => {
             const t = tplOf(c.id);
             const hint = [
-              t?.damageResistances.length ? `resists ${t.damageResistances.join(', ')}` : '',
+              t?.damageResistances.length ? `resists ${t.damageResistances.map(defenseLabel).join(', ')}` : '',
               t?.damageVulnerabilities.length ? `vulnerable to ${t.damageVulnerabilities.join(', ')}` : '',
-              t?.damageImmunities.length ? `immune to ${t.damageImmunities.join(', ')}` : '',
+              t?.damageImmunities.length ? `immune to ${t.damageImmunities.map(defenseLabel).join(', ')}` : '',
             ]
               .filter(Boolean)
               .join(' · ');
             const mod = modOf(c.id);
             const fromStatBlock = targets[c.id] == null && mod !== 'normal';
+            const split = magicSplit(t, damageType);
+            const tone = (m: DamageModifier) => {
+              const on = mod === m;
+              if (split?.magical === m) return on ? 'bg-purple-600 text-white' : 'bg-purple-950/60 text-purple-300 hover:text-purple-100';
+              if (split?.nonmagical === m) return on ? 'bg-orange-600 text-stone-950' : 'bg-orange-950/60 text-orange-300 hover:text-orange-100';
+              return on ? 'bg-sky-600 text-white' : 'bg-stone-900 text-stone-400 hover:text-stone-100';
+            };
             return (
               <li key={c.id} className="flex flex-wrap items-center gap-2 border-t border-stone-800 pt-2 first:border-t-0 first:pt-0">
                 <div className="min-w-28 flex-1">
                   <div className="font-semibold text-stone-100">{c.tokenName}</div>
                   {hint && <div className="text-xs text-amber-300">{hint}</div>}
+                  {split && (
+                    <div className="text-xs text-stone-500">
+                      <span className="text-purple-300">{MODS.find((m) => m.mod === split.magical)!.short}</span> if magical,{' '}
+                      <span className="text-orange-300">{MODS.find((m) => m.mod === split.nonmagical)!.short}</span> if not
+                    </div>
+                  )}
                   {fromStatBlock && <div className="text-xs text-stone-500">{MODS.find((m) => m.mod === mod)!.long} from stat block</div>}
                 </div>
                 <div className="flex overflow-hidden rounded-md border border-stone-700" role="radiogroup" aria-label={`Modifier for ${c.tokenName}`}>
@@ -134,9 +147,9 @@ export function MultiTargetPanel({
                       type="button"
                       role="radio"
                       aria-checked={mod === m.mod}
-                      aria-label={m.long}
+                      aria-label={split?.magical === m.mod ? `${m.long} (magical)` : split?.nonmagical === m.mod ? `${m.long} (nonmagical)` : m.long}
                       onClick={() => setTargets({ ...targets, [c.id]: m.mod })}
-                      className={`px-2 py-1 text-xs ${mod === m.mod ? 'bg-sky-600 text-white' : 'bg-stone-900 text-stone-400 hover:text-stone-100'}`}
+                      className={`px-2 py-1 text-xs ${tone(m.mod)}`}
                     >
                       {m.short}
                     </button>
