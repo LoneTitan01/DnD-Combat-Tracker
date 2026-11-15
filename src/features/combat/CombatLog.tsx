@@ -1,6 +1,7 @@
 import { Button, Card } from '../../components/ui';
 import { canUndo, defeatedXP, describeLogEntry, playerCount, undoLogEntry, xpPerPlayer } from '../../logic';
 import type { Combat, CreatureTemplate, ID } from '../../models';
+import { useSpellMap } from './SpellUses';
 import type { UpdateCombat } from './useCombat';
 
 export function XPTally({ combat }: { combat: Combat }) {
@@ -39,6 +40,8 @@ export function CombatLog({
     const t = byId.get(cid)?.templateId;
     return (t && templates.get(t)?.actions.find((a) => a.id === aid)?.name) || 'ability';
   };
+  const spells = useSpellMap(combat.log.flatMap((e) => (e.spellId ? [e.spellId] : [])));
+  const spellName = (id: ID) => spells.get(id)?.name ?? 'a spell';
   const entries = [...combat.log].reverse();
   return (
     <Card>
@@ -50,7 +53,7 @@ export function CombatLog({
           {entries.map((e) => (
             <li key={e.id} className="flex items-center gap-2 border-t border-stone-800/70 py-1 first:border-t-0">
               <span className="w-8 shrink-0 text-xs tabular-nums text-stone-500">R{e.round}</span>
-              <span className="flex-1 text-stone-300">{describeLogEntry(e, name, actionName)}</span>
+              <span className="flex-1 text-stone-300">{describeLogEntry(e, name, actionName, spellName)}</span>
               {!readOnly && update && canUndo(combat, e.id) && (
                 <Button variant="ghost" className="px-2 py-0.5 text-xs" onClick={() => update((c) => undoLogEntry(c, e.id))}>
                   Undo
