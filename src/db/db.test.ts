@@ -5,16 +5,23 @@ import {
   TrackerDB,
   combatsByStatus,
   creaturesUsingSpell,
+  deleteSpell,
   exportCreatures,
   exportSpells,
   importCreatures,
   importSpells,
+  localSyncData,
+  mergeIntoLocal,
+  restoreSrdSpells,
   saveCombat,
   saveCreature,
   savePlayer,
   saveSpell,
+  seedSrdSpells,
+  srdSpells,
 } from '.';
 import { blankSpell } from '../logic/spells';
+import type { Spell } from '../models';
 import { makeCombat, makeCombatant, makeTemplate } from '../logic/testUtils';
 
 let n = 0;
@@ -100,6 +107,49 @@ describe('TrackerDB', () => {
       skipped: 1,
     });
     await expect(importSpells({ nope: 1 }, other)).rejects.toThrow('No spells');
+    await other.delete();
+  });
+
+  it('seeds the SRD spells once, keeping edits and deletions', async () => {
+    open = fresh();
+    const srd = await srdSpells();
+    expect(srd.length).toBeGreaterThan(300);
+    expect(new Set(srd.map((s) => s.id)).size).toBe(srd.length);
+    expect(srd.every((s) => s.name && s.updatedAt === 0 && !/\*\*|\|/.test(s.description))).toBe(true);
+    expect(srd.find((s) => s.id === 'srd-2024_fireball')).toMatchObject({ name: 'Fireball', level: 3, school: 'evocation' });
+
+    expect(await seedSrdSpells(open)).toBe(srd.length);
+    expect(await seedSrdSpells(open)).toBe(0);
+    const fb = (await open.spells.get('srd-2024_fireball'))!;
+    await saveSpell({ ...fb, range: '200 feet' }, open);
+    await deleteSpell('srd-2024_shield', open);
+    expect(await seedSrdSpells(open)).toBe(0);
+    expect((await open.spells.get('srd-2024_fireball'))?.range).toBe('200 feet');
+    expect(await open.spells.get('srd-2024_shield')).toBeUndefined();
+
+    // Restoring brings deleted ones back, newer than the deletion, and leaves edits alone.
+    expect(await restoreSrdSpells(open)).toBe(1);
+    const shield = (await open.spells.get('srd-2024_shield'))!;
+    expect(shield.updatedAt).toBeGreaterThan(0);
+    expect((await open.spells.get('srd-2024_fireball'))?.range).toBe('200 feet');
+  });
+
+  it('lets synced edits and deletions win over seeded SRD spells', async () => {
+    open = fresh();
+    const srd = (await srdSpells()).slice(0, 3);
+    const [a, b, c] = srd as [Spell, Spell, Spell];
+    const other = fresh();
+    await seedSrdSpells(open, srd);
+    await seedSrdSpells(other, srd);
+    await saveSpell({ ...a, range: 'edited' }, other);
+    await deleteSpell(b.id, other);
+
+    await mergeIntoLocal(await localSyncData(other), open);
+    expect((await open.spells.get(a.id))?.range).toBe('edited');
+    expect(await open.spells.get(b.id)).toBeUndefined();
+    expect(await open.spells.get(c.id)).toBeDefined();
+    // The synced deletion keeps the next start from seeding it again.
+    expect(await seedSrdSpells(open, srd)).toBe(0);
     await other.delete();
   });
 

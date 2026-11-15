@@ -161,7 +161,7 @@ export function PartyPage() {
           {field('level', 'Level', { placeholder: '1–20', className: 'w-20' })}
           {field('initiativeBonus', 'Init bonus', { placeholder: '+0', className: 'w-20' })}
           {field('passivePerception', 'Passive Perception', { placeholder: '10', className: 'w-24' })}
-          <Button type="submit" variant="primary">
+          <Button type="submit" variant="primary" disabled={!campaign}>
             Add player
           </Button>
         </form>

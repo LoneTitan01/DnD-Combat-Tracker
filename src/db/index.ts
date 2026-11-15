@@ -199,6 +199,48 @@ export async function deleteSpell(id: ID, database: TrackerDB = db): Promise<voi
   await deleteWithTombstone(database, 'spells', id);
 }
 
+/** The bundled SRD 5.2 spells (2024 rules). Loaded on demand, since the list is a few hundred KB. */
+export async function srdSpells(): Promise<Spell[]> {
+  const data = (await import('../data/srd-spells.json')).default as { spells: Spell[] };
+  return data.spells;
+}
+
+/**
+ * Adds the bundled SRD spells this device doesn't have, skipping ones deleted on purpose (here, or
+ * elsewhere and synced in). They're stored as never edited (`updatedAt` 0), so any edit or deletion
+ * beats them in sync, and devices that both seed them agree. Safe to run at every start, which also
+ * brings in spells added to the bundled list later. Returns how many were added.
+ */
+export async function seedSrdSpells(database: TrackerDB = db, spells?: Spell[]): Promise<number> {
+  const list = spells ?? (await srdSpells());
+  return database.transaction('rw', database.spells, database.deletions, async () => {
+    const ids = list.map((s) => s.id);
+    const [have, gone] = await Promise.all([
+      database.spells.bulkGet(ids),
+      database.deletions.bulkGet(ids.map((id) => tombstoneKey({ table: 'spells', id }))),
+    ]);
+    const missing = list.filter((_, i) => !have[i] && !gone[i]);
+    if (missing.length) await database.spells.bulkAdd(missing);
+    return missing.length;
+  });
+}
+
+/**
+ * Puts back every bundled SRD spell that's missing, including deleted ones. They count as saved
+ * now, so they win over the deletions on other devices too. Returns how many were restored.
+ */
+export async function restoreSrdSpells(database: TrackerDB = db, spells?: Spell[]): Promise<number> {
+  const list = spells ?? (await srdSpells());
+  const have = await database.spells.bulkGet(list.map((s) => s.id));
+  const now = Date.now();
+  const missing = list.filter((_, i) => !have[i]).map((s) => ({ ...s, createdAt: now, updatedAt: now }));
+  if (missing.length) {
+    await database.spells.bulkPut(missing);
+    changed();
+  }
+  return missing.length;
+}
+
 /** Stat blocks that link to a spell, so deleting it can warn first. */
 export async function creaturesUsingSpell(id: ID, database: TrackerDB = db): Promise<CreatureTemplate[]> {
   return database.creatures.filter((c) => !!c.spellIds?.includes(id)).toArray();

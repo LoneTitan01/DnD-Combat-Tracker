@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router';
-import { ensureCampaign } from '../db';
+import { ensureCampaign, seedSrdSpells } from '../db';
 import { CampaignBar } from '../features/campaigns/CampaignBar';
 import { SyncBadge } from '../features/sync/SyncPage';
 import { startSync } from '../sync/manager';
@@ -19,6 +19,16 @@ const NAV = [
 export function AppShell() {
   useEffect(startSync, []);
   useEffect(() => void ensureCampaign(), []);
+  useEffect(() => {
+    // Not urgent, and a few hundred writes: wait until the first screen has loaded.
+    const seed = () => void seedSrdSpells().catch((e) => console.warn('Could not add the SRD spells:', e));
+    if (typeof requestIdleCallback === 'function') {
+      const handle = requestIdleCallback(seed, { timeout: 3000 });
+      return () => cancelIdleCallback(handle);
+    }
+    const handle = setTimeout(seed, 1000);
+    return () => clearTimeout(handle);
+  }, []);
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-10 border-b border-stone-800 bg-stone-950/95 backdrop-blur">
