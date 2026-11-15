@@ -9,6 +9,7 @@ import { InstallButton } from './InstallButton';
 const NAV = [
   { to: '/', label: 'Home', end: true },
   { to: '/bestiary', label: 'Bestiary' },
+  { to: '/spells', label: 'Spells' },
   { to: '/encounters', label: 'Encounters' },
   { to: '/combats', label: 'Combats' },
   { to: '/party', label: 'Party' },

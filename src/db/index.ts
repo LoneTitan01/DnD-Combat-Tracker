@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie';
 import { campaignOf, defaultCampaign, inCampaign, newCampaign } from '../logic/campaign';
 import { normalizeConditions } from '../logic/conditions';
 import { normalizeCreature } from '../logic/creature';
+import { normalizeSpell } from '../logic/spells';
 import { mergeSyncData, sameSyncData, stampOf, tombstoneKey } from '../logic/sync';
 import {
   DEFAULT_CAMPAIGN_ID,
@@ -12,6 +13,7 @@ import {
   type Encounter,
   type ID,
   type Player,
+  type Spell,
   type SyncData,
   type SyncTable,
   type Tombstone,
@@ -26,6 +28,7 @@ export type StoredTombstone = Tombstone & { key: string };
 export class TrackerDB extends Dexie {
   campaigns!: EntityTable<Campaign, 'id'>;
   creatures!: EntityTable<CreatureTemplate, 'id'>;
+  spells!: EntityTable<Spell, 'id'>;
   players!: EntityTable<Player, 'id'>;
   encounters!: EntityTable<Encounter, 'id'>;
   combats!: EntityTable<Combat, 'id'>;
@@ -73,6 +76,8 @@ export class TrackerDB extends Dexie {
           .toCollection()
           .modify((c: Combat) => void (c.campaignId ??= encounterCampaign.get(c.encounterId) ?? DEFAULT_CAMPAIGN_ID));
       });
+    // v5: the spell list, which stat blocks link to by id.
+    this.version(5).stores({ spells: 'id, name, level, updatedAt' });
   }
 }
 
@@ -182,6 +187,62 @@ export async function deleteCreature(id: ID, database: TrackerDB = db): Promise<
   await deleteWithTombstone(database, 'creatures', id);
 }
 
+// ---------- spells ----------
+
+export async function saveSpell(s: Spell, database: TrackerDB = db): Promise<void> {
+  await database.spells.put({ ...s, updatedAt: Date.now() });
+  changed();
+}
+
+/** Deletes a spell. Stat blocks that link to it just stop showing it. */
+export async function deleteSpell(id: ID, database: TrackerDB = db): Promise<void> {
+  await deleteWithTombstone(database, 'spells', id);
+}
+
+/** Stat blocks that link to a spell, so deleting it can warn first. */
+export async function creaturesUsingSpell(id: ID, database: TrackerDB = db): Promise<CreatureTemplate[]> {
+  return database.creatures.filter((c) => !!c.spellIds?.includes(id)).toArray();
+}
+
+export async function exportSpells(ids?: readonly ID[], database: TrackerDB = db): Promise<BackupFile> {
+  const spells = ids
+    ? (await database.spells.bulkGet([...ids])).filter((s): s is Spell => !!s)
+    : await database.spells.toArray();
+  return { app: 'dm-combat-tracker', version: 1, exportedAt: new Date().toISOString(), creatures: [], spells };
+}
+
+/** Puts imported spells, counting which were new. Spells count as edited now, so sync treats them as newest. */
+async function putImportedSpells(spells: Spell[], database: TrackerDB): Promise<{ added: number; replaced: number }> {
+  if (spells.length === 0) return { added: 0, replaced: 0 };
+  const now = Date.now();
+  const existing = (await database.spells.bulkGet(spells.map((s) => s.id))).filter(Boolean).length;
+  await database.spells.bulkPut(spells.map((s) => ({ ...s, updatedAt: now })));
+  return { added: spells.length - existing, replaced: existing };
+}
+
+/**
+ * Imports spells from a backup file (its `spells`), a bare array, an object with a `results` list
+ * (as public 5e APIs return), or a single spell. Entries without a name are skipped.
+ */
+export async function importSpells(data: unknown, database: TrackerDB = db): Promise<ImportResult> {
+  const o = data as { spells?: unknown; results?: unknown } | null;
+  const list: unknown[] = Array.isArray(data)
+    ? data
+    : Array.isArray(o?.spells)
+      ? o.spells
+      : Array.isArray(o?.results)
+        ? o.results
+        : data && typeof data === 'object' && 'name' in data
+          ? [data]
+          : [];
+  if (list.length === 0) throw new Error('No spells found in file.');
+  const valid = list.map(normalizeSpell).filter((s): s is Spell => s !== null);
+  if (valid.length === 0) throw new Error('No spells with a name found in file.');
+  const r = await putImportedSpells(valid, database);
+  changed();
+  return { ...r, skipped: list.length - valid.length };
+}
+
 // ---------- players ----------
 
 export async function savePlayer(p: Player, database: TrackerDB = db): Promise<void> {
@@ -227,6 +288,8 @@ export interface BackupFile {
   version: 1;
   exportedAt: string;
   creatures: CreatureTemplate[];
+  /** The spells the exported stat blocks link to (or the exported spell list). */
+  spells?: Spell[];
   players?: Player[];
   encounters?: Encounter[];
 }
@@ -236,19 +299,29 @@ export async function exportCreatures(ids?: readonly ID[], database: TrackerDB =
   const creatures = ids
     ? (await database.creatures.bulkGet([...ids])).filter((c): c is CreatureTemplate => !!c)
     : await database.creatures.toArray();
-  return { app: 'dm-combat-tracker', version: 1, exportedAt: new Date().toISOString(), creatures };
+  const spellIds = [...new Set(creatures.flatMap((c) => c.spellIds ?? []))];
+  const spells = (await database.spells.bulkGet(spellIds)).filter((s): s is Spell => !!s);
+  return {
+    app: 'dm-combat-tracker',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    creatures,
+    ...(spells.length ? { spells } : {}),
+  };
 }
 
 export interface ImportResult {
   added: number;
   replaced: number;
   skipped: number;
+  /** Spells that came along with imported stat blocks. */
+  spells?: number;
 }
 
 /**
  * Imports stat blocks from a backup file, a bare array, or a single stat block object. Partial
  * entries are filled with defaults; entries without a name are skipped. Existing stat blocks with
- * the same id are replaced.
+ * the same id are replaced. Spells in a backup file come along too.
  */
 export async function importCreatures(data: unknown, database: TrackerDB = db): Promise<ImportResult> {
   const backup = data as Partial<BackupFile> | null;
@@ -270,12 +343,19 @@ export async function importCreatures(data: unknown, database: TrackerDB = db): 
   const existing = new Set(
     (await database.creatures.bulkGet(valid.map((c) => c.id))).filter(Boolean).map((c) => c!.id),
   );
-  await database.creatures.bulkPut(valid);
+  const spells = (Array.isArray(backup?.spells) ? backup.spells : [])
+    .map(normalizeSpell)
+    .filter((s): s is Spell => s !== null);
+  await database.transaction('rw', database.creatures, database.spells, async () => {
+    await database.creatures.bulkPut(valid);
+    await putImportedSpells(spells, database);
+  });
   changed();
   return {
     added: valid.length - existing.size,
     replaced: existing.size,
     skipped: list.length - valid.length,
+    ...(spells.length ? { spells: spells.length } : {}),
   };
 }
 
@@ -288,15 +368,16 @@ export async function encountersUsingCreature(id: ID, database: TrackerDB = db):
 
 /** Everything sync covers, as stored on this device. */
 export async function localSyncData(database: TrackerDB = db): Promise<SyncData> {
-  const [campaigns, creatures, players, encounters, combats, deletions] = await Promise.all([
+  const [campaigns, creatures, spells, players, encounters, combats, deletions] = await Promise.all([
     database.campaigns.toArray(),
     database.creatures.toArray(),
+    database.spells.toArray(),
     database.players.toArray(),
     database.encounters.toArray(),
     database.combats.toArray(),
     database.deletions.toArray(),
   ]);
-  return { campaigns, creatures, players, encounters, combats, deletions: deletions.map(({ key: _key, ...t }) => t) };
+  return { campaigns, creatures, spells, players, encounters, combats, deletions: deletions.map(({ key: _key, ...t }) => t) };
 }
 
 export interface MergeResult {

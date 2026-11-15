@@ -176,6 +176,40 @@ export interface CreatureTemplate {
   /** Actions, bonus actions, reactions and legendary actions, distinguished by `kind`. */
   actions: Action[];
   notes: string;
+  /** Spells from the spell list this creature can cast. Missing on stat blocks saved before spells existed. */
+  spellIds?: ID[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const SPELL_SCHOOLS = [
+  'abjuration',
+  'conjuration',
+  'divination',
+  'enchantment',
+  'evocation',
+  'illusion',
+  'necromancy',
+  'transmutation',
+] as const;
+
+/** A spell in the spell list, shared by all campaigns like the bestiary. Linked to stat blocks by id. */
+export interface Spell {
+  id: ID;
+  name: string;
+  /** 0 = cantrip, 1–9 = spell level. */
+  level: number;
+  /** Usually one of SPELL_SCHOOLS; free text so homebrew schools work. */
+  school: string;
+  castingTime: string;
+  range: string;
+  components: string;
+  duration: string;
+  concentration: boolean;
+  ritual: boolean;
+  description: string;
+  /** "At Higher Levels" text. */
+  higherLevels: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -323,7 +357,7 @@ export interface Combat {
 
 // ---------- sync ----------
 
-export const SYNC_TABLES = ['campaigns', 'creatures', 'players', 'encounters', 'combats'] as const;
+export const SYNC_TABLES = ['campaigns', 'creatures', 'spells', 'players', 'encounters', 'combats'] as const;
 export type SyncTable = (typeof SYNC_TABLES)[number];
 
 /** A record deleted on some device, so other devices delete it too instead of bringing it back. */
@@ -336,6 +370,7 @@ export interface Tombstone {
 export interface SyncData {
   campaigns: Campaign[];
   creatures: CreatureTemplate[];
+  spells: Spell[];
   players: Player[];
   encounters: Encounter[];
   combats: Combat[];

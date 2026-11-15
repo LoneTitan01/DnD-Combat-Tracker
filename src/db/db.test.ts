@@ -1,7 +1,20 @@
 import 'fake-indexeddb/auto';
 import Dexie from 'dexie';
 import { afterEach, describe, expect, it } from 'vitest';
-import { TrackerDB, combatsByStatus, exportCreatures, importCreatures, saveCombat, saveCreature, savePlayer } from '.';
+import {
+  TrackerDB,
+  combatsByStatus,
+  creaturesUsingSpell,
+  exportCreatures,
+  exportSpells,
+  importCreatures,
+  importSpells,
+  saveCombat,
+  saveCreature,
+  savePlayer,
+  saveSpell,
+} from '.';
+import { blankSpell } from '../logic/spells';
 import { makeCombat, makeCombatant, makeTemplate } from '../logic/testUtils';
 
 let n = 0;
@@ -56,6 +69,38 @@ describe('TrackerDB', () => {
     await saveCreature(makeTemplate({ id: 'a' }), open);
     await saveCreature(makeTemplate({ id: 'b' }), open);
     expect((await exportCreatures(['b'], open)).creatures.map((c) => c.id)).toEqual(['b']);
+  });
+
+  it('exports a stat block with its linked spells, and imports both', async () => {
+    open = fresh();
+    await saveSpell({ ...blankSpell(), id: 'fb', name: 'Fireball' }, open);
+    await saveSpell({ ...blankSpell(), id: 'other', name: 'Shield' }, open);
+    await saveCreature(makeTemplate({ id: 'mage', name: 'Mage', spellIds: ['fb', 'gone'] }), open);
+    const json = JSON.parse(JSON.stringify(await exportCreatures(['mage'], open)));
+    expect(json.spells.map((s: { id: string }) => s.id)).toEqual(['fb']);
+
+    const other = fresh();
+    const r = await importCreatures(json, other);
+    expect(r).toMatchObject({ added: 1, spells: 1 });
+    expect((await other.spells.get('fb'))?.name).toBe('Fireball');
+    expect((await other.creatures.get('mage'))?.spellIds).toEqual(['fb', 'gone']);
+    expect((await creaturesUsingSpell('fb', other)).map((c) => c.id)).toEqual(['mage']);
+    await other.delete();
+  });
+
+  it('round-trips the spell list and imports API-style result lists', async () => {
+    open = fresh();
+    await saveSpell({ ...blankSpell(), id: 'fb', name: 'Fireball' }, open);
+    const json = JSON.parse(JSON.stringify(await exportSpells(undefined, open)));
+    const other = fresh();
+    expect(await importSpells(json, other)).toEqual({ added: 1, replaced: 0, skipped: 0 });
+    expect(await importSpells({ results: [{ name: 'Fireball', id: 'fb' }, { name: 'Light' }, {}] }, other)).toEqual({
+      added: 1,
+      replaced: 1,
+      skipped: 1,
+    });
+    await expect(importSpells({ nope: 1 }, other)).rejects.toThrow('No spells');
+    await other.delete();
   });
 
   it('upgrades plain-name conditions in combats saved by v1', async () => {

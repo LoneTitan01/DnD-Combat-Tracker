@@ -48,6 +48,7 @@ export function blankCreature(): CreatureTemplate {
     traits: [],
     actions: [],
     notes: '',
+    spellIds: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -275,6 +276,7 @@ export function normalizeCreature(raw: unknown): CreatureTemplate | null {
     traits,
     actions,
     notes: str(o.notes),
+    spellIds: Array.isArray(o.spellIds) ? [...new Set(o.spellIds.filter((x): x is string => typeof x === 'string'))] : [],
     createdAt: num(o.createdAt, base.createdAt),
     updatedAt: num(o.updatedAt, base.updatedAt),
   };

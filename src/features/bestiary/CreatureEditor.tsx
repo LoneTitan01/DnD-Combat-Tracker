@@ -1,5 +1,6 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { Button, Card, Chip, Field, NumberField, PageHeader, Select, TextArea, TextInput } from '../../components/ui';
 import { db, saveCreature } from '../../db';
 import {
@@ -12,8 +13,12 @@ import {
   changeHitDice,
   changeSize,
   conHitDiceBonus,
+  filterSpells,
   formatMod,
+  linkedSpells,
   newId,
+  spellLevelLabel,
+  suggestedSpells,
   validateCreature,
   validateRecharge,
   xpForCR,
@@ -33,8 +38,10 @@ import {
   type DieType,
   type Recharge,
   type Size,
+  type Spell,
   type Trait,
 } from '../../models';
+import { SpellMention } from '../spells/SpellMention';
 import { StatBlock } from './StatBlock';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -255,6 +262,113 @@ function DamageChips<T extends string>({
         </Chip>
       ))}
     </div>
+  );
+}
+
+/** Links spells from the spell list; their names in traits and actions then show the spell on hover. */
+function SpellsEditor({ creature, onChange }: { creature: CreatureTemplate; onChange: (ids: string[]) => void }) {
+  const all = useLiveQuery(() => db.spells.toArray());
+  const [query, setQuery] = useState('');
+  if (!all) return null;
+  const ids = creature.spellIds ?? [];
+  const linked = linkedSpells(creature, all);
+  const suggested = suggestedSpells(creature, all);
+  const q = query.trim();
+  const matches = q ? filterSpells(all, { query: q }).filter((s) => !ids.includes(s.id)).slice(0, 8) : [];
+  const add = (more: Spell[]) => onChange([...ids, ...more.map((s) => s.id).filter((id) => !ids.includes(id))]);
+
+  if (all.length === 0) {
+    return (
+      <p className="text-sm text-stone-500">
+        The spell list is empty.{' '}
+        <Link to="/spells" className="text-amber-400 hover:underline">
+          Add or import spells
+        </Link>{' '}
+        to link them here, so hovering a spell's name in the stat block shows what it does.
+      </p>
+    );
+  }
+  return (
+    <>
+      <p className="-mt-1 text-xs text-stone-500">
+        Linked spells named in a trait or action (e.g. a Spellcasting trait) show their description on hover. Linked
+        spells that aren't named anywhere are listed in a Spells entry.
+      </p>
+      {linked.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5" aria-label="Linked spells">
+          {linked.map((s) => (
+            <li
+              key={s.id}
+              className="flex items-center gap-1 rounded-full border border-sky-800/70 bg-sky-950/40 py-0.5 pr-1 pl-2.5 text-xs"
+            >
+              <SpellMention spell={s} />
+              <button
+                type="button"
+                aria-label={`Unlink ${s.name}`}
+                className="rounded-full px-1 text-stone-500 hover:text-stone-100"
+                onClick={() => onChange(ids.filter((id) => id !== s.id))}
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {suggested.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-stone-400">
+          Named in the text:
+          {suggested.map((s) => (
+            <Chip key={s.id} on={false} onClick={() => add([s])}>
+              + {s.name}
+            </Chip>
+          ))}
+          {suggested.length > 1 && (
+            <Button variant="ghost" className="px-2 py-0.5 text-xs" onClick={() => add(suggested)}>
+              Link all
+            </Button>
+          )}
+        </div>
+      )}
+      <div>
+        <TextInput
+          type="search"
+          aria-label="Find a spell to link"
+          placeholder="Find a spell to link…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              if (matches[0]) {
+                add([matches[0]]);
+                setQuery('');
+              }
+            }
+          }}
+          className="w-full"
+        />
+        {q && (
+          <ul className="mt-1 rounded-md border border-stone-800 bg-stone-950/60" aria-label="Matching spells">
+            {matches.length === 0 && <li className="px-3 py-1.5 text-xs text-stone-500">No unlinked spells match.</li>}
+            {matches.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  className="flex w-full items-baseline justify-between px-3 py-1.5 text-left text-sm hover:bg-stone-800"
+                  onClick={() => {
+                    add([s]);
+                    setQuery('');
+                  }}
+                >
+                  <span>Link {s.name}</span>
+                  <span className="text-xs text-stone-500">{spellLevelLabel(s.level)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -488,6 +602,10 @@ export function CreatureEditor() {
           {ACTION_KINDS.map((k) => (
             <ActionsEditor key={k} kind={k} actions={t.actions} onChange={setActions} />
           ))}
+
+          <Section title="Spells">
+            <SpellsEditor creature={t} onChange={(spellIds) => set({ spellIds })} />
+          </Section>
 
           <Section title="Notes">
             <TextArea value={t.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="Tactics, loot, source…" rows={4} />

@@ -14,7 +14,7 @@ export const stampOf = (r: Rec): number => r.updatedAt ?? 0;
 export const tombstoneKey = (t: Pick<Tombstone, 'table' | 'id'>): string => `${t.table}:${t.id}`;
 
 export function emptySyncData(): SyncData {
-  return { campaigns: [], creatures: [], players: [], encounters: [], combats: [], deletions: [] };
+  return { campaigns: [], creatures: [], spells: [], players: [], encounters: [], combats: [], deletions: [] };
 }
 
 export function mergeTombstones(a: readonly Tombstone[], b: readonly Tombstone[]): Tombstone[] {
@@ -45,6 +45,7 @@ export function mergeSyncData(local: SyncData, remote: SyncData): SyncData {
   return {
     campaigns: mergeTable('campaigns', local.campaigns, remote.campaigns, deleted),
     creatures: mergeTable('creatures', local.creatures, remote.creatures, deleted),
+    spells: mergeTable('spells', local.spells, remote.spells, deleted),
     players: mergeTable('players', local.players, remote.players, deleted),
     encounters: mergeTable('encounters', local.encounters, remote.encounters, deleted),
     combats: mergeTable('combats', local.combats, remote.combats, deleted),
@@ -73,6 +74,7 @@ export function parseSyncFile(raw: unknown): SyncFile {
     savedAt: typeof f.savedAt === 'number' ? f.savedAt : 0,
     campaigns: list(f.campaigns),
     creatures: list(f.creatures),
+    spells: list(f.spells),
     players: list(f.players),
     encounters: list(f.encounters),
     combats: list(f.combats),

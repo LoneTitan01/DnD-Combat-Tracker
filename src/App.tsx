@@ -10,6 +10,9 @@ import { CampaignsPage } from './features/campaigns/CampaignsPage';
 import { CombatPage } from './features/combat/CombatPage';
 import { CombatsPage } from './features/combat/CombatsPage';
 import { PartyPage } from './features/party/PartyPage';
+import { SpellEditor } from './features/spells/SpellEditor';
+import { SpellPage } from './features/spells/SpellPage';
+import { SpellsPage } from './features/spells/SpellsPage';
 import { SyncPage } from './features/sync/SyncPage';
 import { TablePage } from './features/table/TablePage';
 
@@ -27,6 +30,10 @@ export default function App() {
           <Route path="bestiary/new" element={<CreatureEditor />} />
           <Route path="bestiary/:id" element={<CreaturePage />} />
           <Route path="bestiary/:id/edit" element={<CreatureEditor key="edit" />} />
+          <Route path="spells" element={<SpellsPage />} />
+          <Route path="spells/new" element={<SpellEditor />} />
+          <Route path="spells/:id" element={<SpellPage />} />
+          <Route path="spells/:id/edit" element={<SpellEditor key="edit" />} />
           <Route path="encounters" element={<EncountersPage />} />
           <Route path="encounters/new" element={<EncounterEditor />} />
           <Route path="encounters/:id" element={<EncounterEditor key="edit" />} />

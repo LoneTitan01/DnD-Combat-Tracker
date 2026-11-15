@@ -1,6 +1,17 @@
-import type { ReactNode } from 'react';
-import { ACTION_KIND_LABELS, abilityMod, formatHitDice, formatMod, rechargeLabel } from '../../logic';
-import { ABILITIES, ACTION_KINDS, defenseLabel, type CreatureTemplate } from '../../models';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { Fragment, type ReactNode } from 'react';
+import { db } from '../../db';
+import {
+  ACTION_KIND_LABELS,
+  abilityMod,
+  formatHitDice,
+  formatMod,
+  linkedSpells,
+  rechargeLabel,
+  unmentionedSpells,
+} from '../../logic';
+import { ABILITIES, ACTION_KINDS, defenseLabel, type CreatureTemplate, type Spell } from '../../models';
+import { SpellMention, SpellText } from '../spells/SpellMention';
 
 function Line({ label, children }: { label: string; children: ReactNode }) {
   if (children === '' || children === null || children === undefined) return null;
@@ -15,22 +26,43 @@ function Rule() {
   return <hr className="my-3 border-t-2 border-amber-700/60" />;
 }
 
-function Entry({ name, suffix, description }: { name: string; suffix?: string; description: string }) {
+function Entry({
+  name,
+  suffix,
+  description,
+  spells,
+}: {
+  name: string;
+  suffix?: string;
+  description: string;
+  spells: readonly Spell[];
+}) {
   return (
     <p className="mb-2 whitespace-pre-line">
       <span className="font-semibold italic text-stone-100">
         {name}
         {suffix && <span className="not-italic text-amber-300"> ({suffix})</span>}.
       </span>{' '}
-      {description}
+      <SpellText text={description} spells={spells} />
     </p>
   );
 }
 
 const list = (xs: readonly string[]) => xs.join(', ');
 
-/** A printed-style 5e stat block. Read-only. */
+/**
+ * A printed-style 5e stat block. Read-only. Linked spells mentioned in its traits and actions show
+ * their description on hover; linked spells it never mentions are listed in a "Spells" entry.
+ */
 export function StatBlock({ creature: t }: { creature: CreatureTemplate }) {
+  const ids = t.spellIds ?? [];
+  const key = ids.join(',');
+  const all = useLiveQuery(
+    async () => (ids.length ? (await db.spells.bulkGet(ids)).filter((s): s is Spell => !!s) : []),
+    [key],
+  );
+  const spells = linkedSpells(t, all ?? []);
+  const extra = unmentionedSpells(t, spells);
   return (
     <article className="rounded-lg border border-amber-800/60 bg-stone-900 p-5 text-sm leading-relaxed text-stone-300 shadow-lg">
       <header>
@@ -73,12 +105,23 @@ export function StatBlock({ creature: t }: { creature: CreatureTemplate }) {
         {t.cr} ({t.xp.toLocaleString()} XP)
       </Line>
 
-      {t.traits.length > 0 && (
+      {(t.traits.length > 0 || extra.length > 0) && (
         <>
           <Rule />
           {t.traits.map((tr) => (
-            <Entry key={tr.id} name={tr.name} description={tr.description} />
+            <Entry key={tr.id} name={tr.name} description={tr.description} spells={spells} />
           ))}
+          {extra.length > 0 && (
+            <p className="mb-2">
+              <span className="font-semibold italic text-stone-100">Spells.</span>{' '}
+              {extra.map((s, i) => (
+                <Fragment key={s.id}>
+                  {i > 0 && ', '}
+                  <SpellMention spell={s} />
+                </Fragment>
+              ))}
+            </p>
+          )}
         </>
       )}
 
@@ -96,6 +139,7 @@ export function StatBlock({ creature: t }: { creature: CreatureTemplate }) {
                 name={a.name}
                 suffix={a.recharge ? rechargeLabel(a.recharge) : undefined}
                 description={a.description}
+                spells={spells}
               />
             ))}
           </section>

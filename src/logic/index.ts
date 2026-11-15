@@ -13,3 +13,4 @@ export * from './encounter';
 export * from './conditions';
 export * from './sync';
 export * from './campaign';
+export * from './spells';

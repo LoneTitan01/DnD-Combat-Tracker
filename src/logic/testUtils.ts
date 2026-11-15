@@ -37,6 +37,7 @@ export function makeTemplate(overrides: Partial<CreatureTemplate> = {}): Creatur
     traits: [],
     actions: [],
     notes: '',
+    spellIds: [],
     createdAt: 0,
     updatedAt: 0,
     ...overrides,
