@@ -18,8 +18,14 @@ import {
   REST_LABELS,
   linkedSpells,
   newId,
+  SPELL_RESOURCE_LABELS,
   setLinkedSpells,
+  setSpellResource,
+  setSpellSlots,
   setSpellUsage,
+  slotLevelLabel,
+  spellResourceOf,
+  spellSlotsOf,
   spellUsageOf,
   spellLevelLabel,
   suggestedSpells,
@@ -36,6 +42,7 @@ import {
   DIE_TYPES,
   REST_TYPES,
   SIZES,
+  SPELL_RESOURCES,
   type Action,
   type ActionKind,
   type CreatureTemplate,
@@ -281,21 +288,24 @@ function LinkedSpellRow({
   onChange: (t: CreatureTemplate) => void;
   onUnlink: () => void;
 }) {
-  const usage = spellUsageOf(creature, spell.id);
+  const usesSlots = spellResourceOf(creature) === 'slots';
+  const usage = usesSlots ? undefined : spellUsageOf(creature, spell.id);
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-sky-800/70 bg-sky-950/30 px-2.5 py-1.5 text-sm">
       <span className="min-w-32 flex-1">
         <SpellMention spell={spell} />
         <span className="ml-2 text-xs text-stone-500">{spellLevelLabel(spell.level)}</span>
       </span>
-      <label className="flex items-center gap-1.5 text-xs text-stone-300">
-        <input
-          type="checkbox"
-          checked={!!usage}
-          onChange={(e) => onChange(setSpellUsage(creature, spell.id, e.target.checked ? DEFAULT_SPELL_USAGE : null))}
-        />
-        Limited uses
-      </label>
+      {!usesSlots && (
+        <label className="flex items-center gap-1.5 text-xs text-stone-300">
+          <input
+            type="checkbox"
+            checked={!!usage}
+            onChange={(e) => onChange(setSpellUsage(creature, spell.id, e.target.checked ? DEFAULT_SPELL_USAGE : null))}
+          />
+          Limited uses
+        </label>
+      )}
       {usage && (
         <span className="flex items-center gap-1.5 text-xs text-stone-400">
           <NumberField
@@ -334,6 +344,57 @@ function LinkedSpellRow({
 }
 
 /**
+ * Picks how the creature pays for spells: limits on specific spells, or spell slots by level
+ * (with a count for each level). Whichever is chosen is what combat tracks.
+ */
+function SpellResourceEditor({
+  creature,
+  onChange,
+}: {
+  creature: CreatureTemplate;
+  onChange: (t: CreatureTemplate) => void;
+}) {
+  const resource = spellResourceOf(creature);
+  const slots = spellSlotsOf(creature);
+  return (
+    <div className="flex flex-col gap-2">
+      <div role="group" aria-label="Track spells by" className="flex flex-wrap items-center gap-1.5 text-xs">
+        <span className="text-stone-400">Track spells by:</span>
+        {SPELL_RESOURCES.map((r) => (
+          <Chip key={r} on={resource === r} onClick={() => onChange(setSpellResource(creature, r))}>
+            {SPELL_RESOURCE_LABELS[r]}
+          </Chip>
+        ))}
+      </div>
+      {resource === 'slots' && (
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="mb-1 text-xs text-stone-500">
+            Slots per long rest at each level. Combat tracks slots instead of per-spell uses.
+          </legend>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-9">
+            {slots.map((n, i) => (
+              <label key={i} className="flex flex-col items-center gap-0.5 text-xs text-stone-400">
+                {ORDINAL_LEVELS[i]}
+                <NumberField
+                  aria-label={`${slotLevelLabel(i + 1)} slots`}
+                  value={n}
+                  min={0}
+                  max={99}
+                  onChange={(count) => onChange(setSpellSlots(creature, i + 1, count))}
+                  className="w-12 px-1 py-0.5 text-center text-xs"
+                />
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+    </div>
+  );
+}
+
+const ORDINAL_LEVELS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
+
+/**
  * Links spells from the spell list; their names in traits and actions then show the spell on hover.
  * Linked spells can be limited to so many casts per short or long rest, tracked in combat.
  */
@@ -364,8 +425,10 @@ function SpellsEditor({ creature, onChange }: { creature: CreatureTemplate; onCh
     <>
       <p className="-mt-1 text-xs text-stone-500">
         Linked spells named in a trait or action (e.g. a Spellcasting trait) show their description on hover. Linked
-        spells that aren't named anywhere are listed in a Spells entry. Spells with limited uses get a tracker in
-        combat.
+        spells that aren't named anywhere are listed in a Spells entry.{' '}
+        {spellResourceOf(creature) === 'slots'
+          ? 'Combat shows the spell slots left, with linked spells listed by level.'
+          : 'Spells with limited uses get a tracker in combat.'}
       </p>
       {linked.length > 0 && (
         <ul className="flex flex-col gap-1.5" aria-label="Linked spells">
@@ -623,6 +686,7 @@ export function CreatureForm({
       ))}
 
       <Section title="Spells">
+        <SpellResourceEditor creature={t} onChange={setDraft} />
         <SpellsEditor creature={t} onChange={setDraft} />
       </Section>
 

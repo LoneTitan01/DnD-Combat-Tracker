@@ -1,4 +1,13 @@
-import { REST_TYPES, type CreatureTemplate, type ID, type RestType, type Spell, type SpellUsage } from '../models';
+import {
+  MAX_SLOT_LEVEL,
+  REST_TYPES,
+  type CreatureTemplate,
+  type ID,
+  type RestType,
+  type Spell,
+  type SpellResource,
+  type SpellUsage,
+} from '../models';
 import { newId } from './ids';
 
 export function blankSpell(): Spell {
@@ -134,6 +143,62 @@ export function normalizeSpellUsage(v: unknown, spellIds: readonly ID[]): Record
     out[id] = { uses, per };
   }
   return Object.keys(out).length ? out : undefined;
+}
+
+// ---------- spell slots ----------
+
+export const SPELL_RESOURCE_LABELS: Record<SpellResource, string> = {
+  perSpell: 'Uses per spell',
+  slots: 'Spell slots',
+};
+
+/** "3rd-level". */
+export function slotLevelLabel(level: number): string {
+  return `${ORDINALS[level] ?? `${level}th`}-level`;
+}
+
+export function spellResourceOf(t: Pick<CreatureTemplate, 'spellResource'>): SpellResource {
+  return t.spellResource ?? 'perSpell';
+}
+
+/** Switches between per-spell limits and spell slots. Both settings are kept, so switching back loses nothing. */
+export function setSpellResource(t: CreatureTemplate, resource: SpellResource): CreatureTemplate {
+  const { spellResource: _old, ...base } = t;
+  return resource === 'slots' ? { ...base, spellResource: 'slots' } : base;
+}
+
+const clampSlots = (n: number) => Math.min(99, Math.max(0, Math.floor(n)));
+
+/** Slots per level, always 9 long (index 0 = 1st level). */
+export function spellSlotsOf(t: Pick<CreatureTemplate, 'spellSlots'>): number[] {
+  return Array.from({ length: MAX_SLOT_LEVEL }, (_, i) => t.spellSlots?.[i] ?? 0);
+}
+
+/** Sets the slot count for one level (1–9). The list is dropped when every level is 0. */
+export function setSpellSlots(t: CreatureTemplate, level: number, count: number): CreatureTemplate {
+  if (level < 1 || level > MAX_SLOT_LEVEL) return t;
+  const slots = spellSlotsOf(t);
+  slots[level - 1] = clampSlots(count);
+  const { spellSlots: _old, ...base } = t;
+  return slots.some((n) => n > 0) ? { ...base, spellSlots: slots } : base;
+}
+
+/** Levels with at least one slot, when the creature uses slots. Empty otherwise. */
+export function slotLevels(
+  t: Pick<CreatureTemplate, 'spellResource' | 'spellSlots'>,
+): Array<{ level: number; slots: number }> {
+  if (spellResourceOf(t) !== 'slots') return [];
+  return spellSlotsOf(t).flatMap((slots, i) => (slots > 0 ? [{ level: i + 1, slots }] : []));
+}
+
+/** Cleans imported slot counts: whole numbers 0–99, at most 9 levels. Undefined when there are none. */
+export function normalizeSpellSlots(v: unknown): number[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const slots = Array.from({ length: MAX_SLOT_LEVEL }, (_, i) => {
+    const n: unknown = v[i];
+    return typeof n === 'number' && Number.isFinite(n) ? clampSlots(n) : 0;
+  });
+  return slots.some((n) => n > 0) ? slots : undefined;
 }
 
 export type SpellTextPart = string | { text: string; spell: Spell };

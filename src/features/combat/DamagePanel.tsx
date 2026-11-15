@@ -16,7 +16,7 @@ import { StatBlock } from '../bestiary/StatBlock';
 import { CombatNotes } from './CombatNotes';
 import { ConditionEditor } from './Conditions';
 import { CreatureDisplay } from './CreatureDisplay';
-import { SpellUseChips, limitedSpellIds, useSpellMap } from './SpellUses';
+import { SpellSlots, SpellUseChips, trackedSpellIds, useSpellMap } from './SpellUses';
 import type { UpdateCombat } from './useCombat';
 
 export function HPBar({ c }: { c: Combatant }) {
@@ -137,7 +137,7 @@ export function CreaturePanel({
   const [amount, setAmount] = useState('');
   const [damageType, setDamageType] = useState<DamageType | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const spells = useSpellMap(template ? limitedSpellIds([template]) : []);
+  const spells = useSpellMap(template ? trackedSpellIds([template]) : []);
   useEffect(() => setAmount(''), [c.id]);
   useEffect(() => {
     if (autoFocus) input.current?.focus();
@@ -274,6 +274,7 @@ export function CreaturePanel({
       </Card>
       {template ? (
         <>
+          <SpellSlots combatant={c} template={template} spells={spells} update={update} />
           <SpellUseChips combatant={c} template={template} spells={spells} update={update} />
           <StatBlock creature={template} />
         </>

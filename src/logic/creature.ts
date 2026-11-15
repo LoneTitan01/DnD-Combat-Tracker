@@ -18,7 +18,7 @@ import {
 } from '../models';
 import { abilityMod, averageHP, DIE_FOR_SIZE, parseDice } from './dice';
 import { newId } from './ids';
-import { normalizeSpellUsage } from './spells';
+import { normalizeSpellSlots, normalizeSpellUsage } from './spells';
 import { crToNumber, xpForCR } from './xp';
 
 export function blankCreature(): CreatureTemplate {
@@ -252,6 +252,7 @@ export function normalizeCreature(raw: unknown): CreatureTemplate | null {
   });
   const spellIds = Array.isArray(o.spellIds) ? [...new Set(o.spellIds.filter((x): x is string => typeof x === 'string'))] : [];
   const spellUsage = normalizeSpellUsage(o.spellUsage, spellIds);
+  const spellSlots = normalizeSpellSlots(o.spellSlots);
   return {
     id: str(o.id) || base.id,
     name,
@@ -281,6 +282,8 @@ export function normalizeCreature(raw: unknown): CreatureTemplate | null {
     notes: str(o.notes),
     spellIds,
     ...(spellUsage ? { spellUsage } : {}),
+    ...(o.spellResource === 'slots' ? { spellResource: 'slots' as const } : {}),
+    ...(spellSlots ? { spellSlots } : {}),
     createdAt: num(o.createdAt, base.createdAt),
     updatedAt: num(o.updatedAt, base.updatedAt),
   };

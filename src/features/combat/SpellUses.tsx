@@ -2,8 +2,14 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../../db";
 import {
   REST_LABELS,
+  changeSlotUses,
   changeSpellUses,
   limitedSpells,
+  linkedSpells,
+  slotLevelLabel,
+  slotLevels,
+  slotsSpent,
+  spellResourceOf,
   spellUsesSpent,
 } from "../../logic";
 import type { Combatant, CreatureTemplate, ID, Spell } from "../../models";
@@ -24,10 +30,129 @@ export function useSpellMap(ids: readonly ID[]): ReadonlyMap<ID, Spell> {
   return new Map((spells ?? []).map((s) => [s.id, s]));
 }
 
-/** Every spell with a limit across these stat blocks, so the tracker can load them in one go. */
-export function limitedSpellIds(templates: Iterable<CreatureTemplate>): ID[] {
+/**
+ * The spells the trackers need across these stat blocks, so they load in one go: every linked spell
+ * for a creature on spell slots (listed by level), otherwise just the ones with a limit.
+ */
+export function trackedSpellIds(templates: Iterable<CreatureTemplate>): ID[] {
   return [...templates].flatMap((t) =>
-    Object.keys(t.spellUsage ?? {}).filter((id) => t.spellIds?.includes(id)),
+    spellResourceOf(t) === "slots"
+      ? (t.spellIds ?? [])
+      : Object.keys(t.spellUsage ?? {}).filter((id) => t.spellIds?.includes(id)),
+  );
+}
+
+const ORDINAL = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th"];
+
+/**
+ * Spell slots left at each level as pips, Use to spend one, − to give one back (a mis-click or a
+ * retcon). Linked spells of that level are listed alongside (hover for details). Only for creatures
+ * whose stat block tracks spell slots.
+ */
+export function SpellSlots({
+  combatant,
+  template,
+  spells,
+  update,
+}: {
+  combatant: Combatant;
+  template: CreatureTemplate | undefined;
+  spells: ReadonlyMap<ID, Spell>;
+  update: UpdateCombat;
+}) {
+  if (!template) return null;
+  const levels = slotLevels(template);
+  if (levels.length === 0) return null;
+  const linked = linkedSpells(template, [...spells.values()]);
+  const cantrips = linked.filter((s) => s.level === 0);
+
+  return (
+    <section
+      aria-label="Spell slots"
+      className="flex flex-col gap-2 rounded-lg border border-violet-900/60 bg-stone-900 p-3"
+    >
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+        Spell slots
+      </h3>
+      <ul className="flex flex-col gap-1.5">
+        {levels.map(({ level, slots }) => {
+          const spent = Math.min(slotsSpent(combatant, level), slots);
+          const left = slots - spent;
+          const out = left === 0;
+          const label = slotLevelLabel(level);
+          const atLevel = linked.filter((s) => s.level === level);
+          const change = (delta: number) =>
+            update((c) => changeSlotUses(c, combatant.id, level, delta, slots));
+          return (
+            <li
+              key={level}
+              role="group"
+              aria-label={`${label} slots: ${left} of ${slots} left`}
+              className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-xs ${out ? "text-stone-500" : "text-violet-100"}`}
+            >
+              <span className="w-8 shrink-0 font-semibold tabular-nums">
+                {ORDINAL[level]}
+              </span>
+              <span className="flex gap-0.5" aria-hidden>
+                {Array.from({ length: slots }, (_, i) => (
+                  <span
+                    key={i}
+                    className={`inline-block h-2.5 w-2.5 rounded-sm border ${
+                      i < left
+                        ? "border-violet-300 bg-violet-300"
+                        : "border-stone-500 bg-transparent"
+                    }`}
+                  />
+                ))}
+              </span>
+              <span className="tabular-nums">
+                {left}/{slots}
+              </span>
+              <button
+                type="button"
+                aria-label={`Give back a ${label} slot`}
+                title="Give back a slot (mistake or retcon)"
+                disabled={spent === 0}
+                className="rounded bg-stone-700 px-1.5 hover:bg-stone-600 disabled:opacity-40 disabled:hover:bg-stone-700"
+                onClick={() => change(-1)}
+              >
+                −
+              </button>
+              <button
+                type="button"
+                aria-label={`Use a ${label} slot`}
+                disabled={out || combatant.isDead}
+                className="rounded bg-violet-700 px-1.5 font-semibold text-white hover:bg-violet-600 disabled:bg-stone-700 disabled:text-stone-400"
+                onClick={() => change(1)}
+              >
+                Use
+              </button>
+              {atLevel.length > 0 && (
+                <span className="text-stone-300">
+                  {atLevel.map((s, i) => (
+                    <span key={s.id}>
+                      <SpellMention spell={s} />
+                      {i < atLevel.length - 1 ? ", " : ""}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {cantrips.length > 0 && (
+        <p className="text-xs text-stone-400">
+          Cantrips (at will):{" "}
+          {cantrips.map((s, i) => (
+            <span key={s.id}>
+              <SpellMention spell={s} />
+              {i < cantrips.length - 1 ? ", " : ""}
+            </span>
+          ))}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -51,7 +176,7 @@ export function SpellUseChips({
   spells: ReadonlyMap<ID, Spell>;
   update: UpdateCombat;
 }) {
-  if (!template?.spellUsage) return null;
+  if (!template?.spellUsage || spellResourceOf(template) === "slots") return null;
   const limited = limitedSpells(template, [...spells.values()]);
   if (limited.length === 0) return null;
 

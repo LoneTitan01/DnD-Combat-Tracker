@@ -2,6 +2,7 @@ import type { AbilityState, Combat, Combatant, DamageModifier, DamageType, ID, L
 import { applyDamage, grantTempHP, heal, revive } from './damage';
 import { defaultRng, rollDie, type Rng } from './dice';
 import { newId } from './ids';
+import { slotLevelLabel } from './spells';
 
 // ---------- helpers ----------
 
@@ -248,6 +249,38 @@ export function changeSpellUses(combat: Combat, combatantId: ID, spellId: ID, de
   });
 }
 
+// ---------- spell slots ----------
+
+/** Slots of a level (1–9) spent in this combat. */
+export function slotsSpent(c: Pick<Combatant, 'slotsUsed'>, level: number): number {
+  return c.slotsUsed?.[level] ?? 0;
+}
+
+function withSlotsSpent(c: Combatant, level: number, n: number): Combatant {
+  const { [level]: _old, ...rest } = c.slotsUsed ?? {};
+  return { ...c, slotsUsed: n > 0 ? { ...rest, [level]: n } : rest };
+}
+
+/**
+ * Spends (+1) or gives back (−1, a mistake or retcon) a spell slot of a level, kept between 0 and
+ * `max` (the stat block's slots at that level). Logged so it can be undone; no change, no log.
+ */
+export function changeSlotUses(combat: Combat, combatantId: ID, level: number, delta: number, max: number): Combat {
+  const c = findCombatant(combat, combatantId);
+  if (!c) return combat;
+  const spent = slotsSpent(c, level);
+  const after = Math.min(Math.max(0, max), Math.max(0, spent + Math.trunc(delta)));
+  if (after === spent) return combat;
+  const next = updateCombatant(combat, combatantId, (x) => withSlotsSpent(x, level, after));
+  return pushLog(next, {
+    type: after > spent ? 'slotUsed' : 'slotRestored',
+    combatantId,
+    slotLevel: level,
+    usesAfter: after,
+    before: c,
+  });
+}
+
 // ---------- notes ----------
 
 /** Sets a combatant's DM notes. Not logged and not undoable; blank notes are removed. */
@@ -280,6 +313,11 @@ export function setCreatureDisplay(
 
 const HP_TYPES = new Set(['damage', 'heal', 'tempHP']);
 const SPELL_TYPES = new Set(['spellCast', 'spellUsesAdjusted']);
+const SLOT_TYPES = new Set(['slotUsed', 'slotRestored']);
+
+function isSlotEntry(e: LogEntry): boolean {
+  return SLOT_TYPES.has(e.type);
+}
 
 function isHpEntry(e: LogEntry): boolean {
   return HP_TYPES.has(e.type);
@@ -293,7 +331,8 @@ function sameUndoStream(a: LogEntry, b: LogEntry): boolean {
   if (a.combatantId !== b.combatantId || !a.before || !b.before) return false;
   if (isHpEntry(a)) return isHpEntry(b);
   if (isSpellEntry(a)) return isSpellEntry(b) && a.spellId === b.spellId;
-  return !isHpEntry(b) && !isSpellEntry(b) && a.actionId === b.actionId;
+  if (isSlotEntry(a)) return isSlotEntry(b) && a.slotLevel === b.slotLevel;
+  return !isHpEntry(b) && !isSpellEntry(b) && !isSlotEntry(b) && a.actionId === b.actionId;
 }
 
 function restoreSpellUses(c: Combatant, before: Combatant, spellId: ID): Combatant {
@@ -323,7 +362,9 @@ export function undoLogEntry(combat: Combat, entryId: ID): Combat {
       ? { ...c, currentHP: before.currentHP, tempHP: before.tempHP, isDead: before.isDead }
       : isSpellEntry(entry)
         ? restoreSpellUses(c, before, entry.spellId!)
-        : {
+        : isSlotEntry(entry)
+          ? withSlotsSpent(c, entry.slotLevel!, slotsSpent(before, entry.slotLevel!))
+          : {
           ...c,
           abilityStates: c.abilityStates.map((s) =>
             s.actionId === entry.actionId
@@ -405,5 +446,9 @@ export function describeLogEntry(
       return `${who} casts ${e.spellId ? spellName(e.spellId) : 'a spell'} (${e.usesAfter ?? 1} used)`;
     case 'spellUsesAdjusted':
       return `${who}: ${e.spellId ? spellName(e.spellId) : 'spell'} use taken back (${e.usesAfter ?? 0} used)`;
+    case 'slotUsed':
+      return `${who} uses a ${slotLevelLabel(e.slotLevel ?? 1)} spell slot (${e.usesAfter ?? 1} used)`;
+    case 'slotRestored':
+      return `${who}: ${slotLevelLabel(e.slotLevel ?? 1)} spell slot given back (${e.usesAfter ?? 0} used)`;
   }
 }
