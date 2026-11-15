@@ -144,6 +144,17 @@ export interface Action {
   recharge?: Recharge;
 }
 
+export const REST_TYPES = ['short', 'long'] as const;
+/** What restores a limited-use spell: a short rest (or a long one) or only a long rest. */
+export type RestType = (typeof REST_TYPES)[number];
+
+/** A linked spell the creature can cast only so many times before it rests. */
+export interface SpellUsage {
+  /** Casts allowed per rest (at least 1). */
+  uses: number;
+  per: RestType;
+}
+
 export interface Trait {
   id: ID;
   name: string;
@@ -178,6 +189,8 @@ export interface CreatureTemplate {
   notes: string;
   /** Spells from the spell list this creature can cast. Missing on stat blocks saved before spells existed. */
   spellIds?: ID[];
+  /** Limits on linked spells, by spell id. Spells without an entry are at will. */
+  spellUsage?: Record<ID, SpellUsage>;
   createdAt: number;
   updatedAt: number;
 }
@@ -305,6 +318,8 @@ export interface Combatant {
   fakeName?: string;
   /** Player view shows `fakeName` instead of the real kind of creature. */
   showFakeName?: boolean;
+  /** Casts spent on limited-use spells in this combat, by spell id. The limits come from the stat block. */
+  spellsUsed?: Record<ID, number>;
 }
 
 export type DamageModifier = 'normal' | 'resisted' | 'vulnerable' | 'immune';
@@ -316,7 +331,9 @@ export type LogEntryType =
   | 'abilityUsed'
   | 'rechargeRolled'
   | 'abilityReady'
-  | 'conditionEnded';
+  | 'conditionEnded'
+  | 'spellCast'
+  | 'spellUsesAdjusted';
 
 export interface LogEntry {
   id: ID;
@@ -333,6 +350,9 @@ export interface LogEntry {
   // ability events
   actionId?: ID;
   roll?: number;
+  // spell events: the spell, and how many of its uses are spent afterwards
+  spellId?: ID;
+  usesAfter?: number;
   // condition events
   condition?: Condition;
   /** Combatant state before this event, for undo. Absent on entries that can't be undone. */

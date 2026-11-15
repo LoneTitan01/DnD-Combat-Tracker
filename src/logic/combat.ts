@@ -218,6 +218,36 @@ export function pendingPrompts(c: Combatant): AbilityPrompt[] {
     }));
 }
 
+// ---------- limited-use spells ----------
+
+/** Casts of a spell spent in this combat. */
+export function spellUsesSpent(c: Pick<Combatant, 'spellsUsed'>, spellId: ID): number {
+  return c.spellsUsed?.[spellId] ?? 0;
+}
+
+/**
+ * Spends (+1, a cast) or gives back (−1, a mistake or retcon) uses of a limited spell, kept between
+ * 0 and `max` (the stat block's uses). Logged so it can be undone; no change, no log.
+ */
+export function changeSpellUses(combat: Combat, combatantId: ID, spellId: ID, delta: number, max: number): Combat {
+  const c = findCombatant(combat, combatantId);
+  if (!c) return combat;
+  const spent = spellUsesSpent(c, spellId);
+  const after = Math.min(Math.max(0, max), Math.max(0, spent + Math.trunc(delta)));
+  if (after === spent) return combat;
+  const next = updateCombatant(combat, combatantId, (x) => {
+    const { [spellId]: _old, ...rest } = x.spellsUsed ?? {};
+    return { ...x, spellsUsed: after > 0 ? { ...rest, [spellId]: after } : rest };
+  });
+  return pushLog(next, {
+    type: after > spent ? 'spellCast' : 'spellUsesAdjusted',
+    combatantId,
+    spellId,
+    usesAfter: after,
+    before: c,
+  });
+}
+
 // ---------- notes ----------
 
 /** Sets a combatant's DM notes. Not logged and not undoable; blank notes are removed. */
@@ -249,15 +279,27 @@ export function setCreatureDisplay(
 // ---------- undo ----------
 
 const HP_TYPES = new Set(['damage', 'heal', 'tempHP']);
+const SPELL_TYPES = new Set(['spellCast', 'spellUsesAdjusted']);
 
 function isHpEntry(e: LogEntry): boolean {
   return HP_TYPES.has(e.type);
 }
 
+function isSpellEntry(e: LogEntry): boolean {
+  return SPELL_TYPES.has(e.type);
+}
+
 function sameUndoStream(a: LogEntry, b: LogEntry): boolean {
   if (a.combatantId !== b.combatantId || !a.before || !b.before) return false;
   if (isHpEntry(a)) return isHpEntry(b);
-  return !isHpEntry(b) && a.actionId === b.actionId;
+  if (isSpellEntry(a)) return isSpellEntry(b) && a.spellId === b.spellId;
+  return !isHpEntry(b) && !isSpellEntry(b) && a.actionId === b.actionId;
+}
+
+function restoreSpellUses(c: Combatant, before: Combatant, spellId: ID): Combatant {
+  const { [spellId]: _now, ...rest } = c.spellsUsed ?? {};
+  const was = spellUsesSpent(before, spellId);
+  return { ...c, spellsUsed: was > 0 ? { ...rest, [spellId]: was } : rest };
 }
 
 /**
@@ -279,7 +321,9 @@ export function undoLogEntry(combat: Combat, entryId: ID): Combat {
   const restored = updateCombatant(combat, entry.combatantId, (c) =>
     isHpEntry(entry)
       ? { ...c, currentHP: before.currentHP, tempHP: before.tempHP, isDead: before.isDead }
-      : {
+      : isSpellEntry(entry)
+        ? restoreSpellUses(c, before, entry.spellId!)
+        : {
           ...c,
           abilityStates: c.abilityStates.map((s) =>
             s.actionId === entry.actionId
@@ -319,12 +363,13 @@ const MODIFIER_TEXT: Record<DamageModifier, string> = {
 
 /**
  * One-line description of a log entry for the combat log. `name` looks up a combatant's token
- * name (it may have been removed since); `actionName` looks up an ability's name.
+ * name (it may have been removed since); `actionName` looks up an ability's name; `spellName` a spell's.
  */
 export function describeLogEntry(
   e: LogEntry,
   name: (combatantId: ID) => string,
   actionName: (combatantId: ID, actionId: ID) => string,
+  spellName: (spellId: ID) => string = () => 'a spell',
 ): string {
   const who = name(e.combatantId);
   const ability = e.actionId ? actionName(e.combatantId, e.actionId) : '';
@@ -356,5 +401,9 @@ export function describeLogEntry(
       return `${who}: ${ability} is ready`;
     case 'conditionEnded':
       return `${who} is no longer ${e.condition ?? 'affected'}`;
+    case 'spellCast':
+      return `${who} casts ${e.spellId ? spellName(e.spellId) : 'a spell'} (${e.usesAfter ?? 1} used)`;
+    case 'spellUsesAdjusted':
+      return `${who}: ${e.spellId ? spellName(e.spellId) : 'spell'} use taken back (${e.usesAfter ?? 0} used)`;
   }
 }

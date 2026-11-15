@@ -1,4 +1,4 @@
-import type { CreatureTemplate, ID, Spell } from '../models';
+import { REST_TYPES, type CreatureTemplate, type ID, type RestType, type Spell, type SpellUsage } from '../models';
 import { newId } from './ids';
 
 export function blankSpell(): Spell {
@@ -77,6 +77,63 @@ export function spellSchools(list: readonly Spell[]): string[] {
 export function linkedSpells(t: Pick<CreatureTemplate, 'spellIds'>, all: readonly Spell[]): Spell[] {
   const ids = new Set(t.spellIds ?? []);
   return filterSpells(all.filter((s) => ids.has(s.id)));
+}
+
+// ---------- limited uses ----------
+
+export const DEFAULT_SPELL_USAGE: SpellUsage = { uses: 1, per: 'long' };
+
+export const REST_LABELS: Record<RestType, string> = { short: 'Short rest', long: 'Long rest' };
+
+/** "3/long rest". */
+export function spellUsageLabel(u: SpellUsage): string {
+  return `${u.uses}/${REST_LABELS[u.per].toLowerCase()}`;
+}
+
+/** The limit on a linked spell, or undefined when it's at will (or no longer linked). */
+export function spellUsageOf(t: Pick<CreatureTemplate, 'spellIds' | 'spellUsage'>, spellId: ID): SpellUsage | undefined {
+  return t.spellIds?.includes(spellId) ? t.spellUsage?.[spellId] : undefined;
+}
+
+/** Sets or clears (null) the limit on a linked spell. The map is dropped when it empties. */
+export function setSpellUsage(t: CreatureTemplate, spellId: ID, usage: SpellUsage | null): CreatureTemplate {
+  const { [spellId]: _old, ...rest } = t.spellUsage ?? {};
+  const next = usage ? { ...rest, [spellId]: { uses: Math.max(1, Math.floor(usage.uses)), per: usage.per } } : rest;
+  const { spellUsage: _drop, ...base } = t;
+  return Object.keys(next).length ? { ...base, spellUsage: next } : base;
+}
+
+/** Changes which spells are linked, dropping the limits of any that were unlinked. */
+export function setLinkedSpells(t: CreatureTemplate, spellIds: ID[]): CreatureTemplate {
+  const keep = new Set(spellIds);
+  const usage = Object.fromEntries(Object.entries(t.spellUsage ?? {}).filter(([id]) => keep.has(id)));
+  const { spellUsage: _drop, ...base } = t;
+  return Object.keys(usage).length ? { ...base, spellIds, spellUsage: usage } : { ...base, spellIds };
+}
+
+/** Linked spells with a limit, in spell-list order. */
+export function limitedSpells(
+  t: Pick<CreatureTemplate, 'spellIds' | 'spellUsage'>,
+  all: readonly Spell[],
+): Array<{ spell: Spell; usage: SpellUsage }> {
+  return linkedSpells(t, all).flatMap((spell) => {
+    const usage = spellUsageOf(t, spell.id);
+    return usage ? [{ spell, usage }] : [];
+  });
+}
+
+/** Cleans imported limits: only linked spells, at least 1 use, a known rest type. */
+export function normalizeSpellUsage(v: unknown, spellIds: readonly ID[]): Record<ID, SpellUsage> | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const out: Record<ID, SpellUsage> = {};
+  for (const [id, raw] of Object.entries(v as Record<string, unknown>)) {
+    if (!spellIds.includes(id) || !raw || typeof raw !== 'object') continue;
+    const o = raw as Record<string, unknown>;
+    const uses = typeof o.uses === 'number' && Number.isFinite(o.uses) ? Math.max(1, Math.floor(o.uses)) : 1;
+    const per = REST_TYPES.includes(o.per as RestType) ? (o.per as RestType) : 'long';
+    out[id] = { uses, per };
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 export type SpellTextPart = string | { text: string; spell: Spell };

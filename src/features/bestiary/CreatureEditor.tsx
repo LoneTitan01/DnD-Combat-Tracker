@@ -15,8 +15,13 @@ import {
   conHitDiceBonus,
   filterSpells,
   formatMod,
+  DEFAULT_SPELL_USAGE,
+  REST_LABELS,
   linkedSpells,
   newId,
+  setLinkedSpells,
+  setSpellUsage,
+  spellUsageOf,
   spellLevelLabel,
   suggestedSpells,
   validateCreature,
@@ -31,12 +36,14 @@ import {
   NONMAGICAL,
   DEFENSE_TYPES,
   DIE_TYPES,
+  REST_TYPES,
   SIZES,
   type Action,
   type ActionKind,
   type CreatureTemplate,
   type DieType,
   type Recharge,
+  type RestType,
   type Size,
   type Spell,
   type Trait,
@@ -265,8 +272,75 @@ function DamageChips<T extends string>({
   );
 }
 
-/** Links spells from the spell list; their names in traits and actions then show the spell on hover. */
-function SpellsEditor({ creature, onChange }: { creature: CreatureTemplate; onChange: (ids: string[]) => void }) {
+/** One linked spell: unlink it, or limit how often it can be cast between rests. */
+function LinkedSpellRow({
+  creature,
+  spell,
+  onChange,
+  onUnlink,
+}: {
+  creature: CreatureTemplate;
+  spell: Spell;
+  onChange: (t: CreatureTemplate) => void;
+  onUnlink: () => void;
+}) {
+  const usage = spellUsageOf(creature, spell.id);
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-sky-800/70 bg-sky-950/30 px-2.5 py-1.5 text-sm">
+      <span className="min-w-32 flex-1">
+        <SpellMention spell={spell} />
+        <span className="ml-2 text-xs text-stone-500">{spellLevelLabel(spell.level)}</span>
+      </span>
+      <label className="flex items-center gap-1.5 text-xs text-stone-300">
+        <input
+          type="checkbox"
+          checked={!!usage}
+          onChange={(e) => onChange(setSpellUsage(creature, spell.id, e.target.checked ? DEFAULT_SPELL_USAGE : null))}
+        />
+        Limited uses
+      </label>
+      {usage && (
+        <span className="flex items-center gap-1.5 text-xs text-stone-400">
+          <NumberField
+            aria-label={`Uses of ${spell.name}`}
+            value={usage.uses}
+            min={1}
+            max={99}
+            onChange={(uses) => onChange(setSpellUsage(creature, spell.id, { ...usage, uses }))}
+            className="w-14 px-1 py-0.5 text-center text-xs"
+          />
+          per
+          <Select
+            aria-label={`${spell.name} refreshes on`}
+            value={usage.per}
+            onChange={(e) => onChange(setSpellUsage(creature, spell.id, { ...usage, per: e.target.value as RestType }))}
+            className="py-0.5 text-xs"
+          >
+            {REST_TYPES.map((r) => (
+              <option key={r} value={r}>
+                {REST_LABELS[r]}
+              </option>
+            ))}
+          </Select>
+        </span>
+      )}
+      <button
+        type="button"
+        aria-label={`Unlink ${spell.name}`}
+        className="rounded-full px-1 text-stone-500 hover:text-stone-100"
+        onClick={onUnlink}
+      >
+        ✕
+      </button>
+    </li>
+  );
+}
+
+/**
+ * Links spells from the spell list; their names in traits and actions then show the spell on hover.
+ * Linked spells can be limited to so many casts per short or long rest, tracked in combat.
+ */
+function SpellsEditor({ creature, onChange }: { creature: CreatureTemplate; onChange: (t: CreatureTemplate) => void }) {
   const all = useLiveQuery(() => db.spells.toArray());
   const [query, setQuery] = useState('');
   if (!all) return null;
@@ -275,7 +349,8 @@ function SpellsEditor({ creature, onChange }: { creature: CreatureTemplate; onCh
   const suggested = suggestedSpells(creature, all);
   const q = query.trim();
   const matches = q ? filterSpells(all, { query: q }).filter((s) => !ids.includes(s.id)).slice(0, 8) : [];
-  const add = (more: Spell[]) => onChange([...ids, ...more.map((s) => s.id).filter((id) => !ids.includes(id))]);
+  const link = (next: string[]) => onChange(setLinkedSpells(creature, next));
+  const add = (more: Spell[]) => link([...ids, ...more.map((s) => s.id).filter((id) => !ids.includes(id))]);
 
   if (all.length === 0) {
     return (
@@ -292,25 +367,19 @@ function SpellsEditor({ creature, onChange }: { creature: CreatureTemplate; onCh
     <>
       <p className="-mt-1 text-xs text-stone-500">
         Linked spells named in a trait or action (e.g. a Spellcasting trait) show their description on hover. Linked
-        spells that aren't named anywhere are listed in a Spells entry.
+        spells that aren't named anywhere are listed in a Spells entry. Spells with limited uses get a tracker in
+        combat.
       </p>
       {linked.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5" aria-label="Linked spells">
+        <ul className="flex flex-col gap-1.5" aria-label="Linked spells">
           {linked.map((s) => (
-            <li
+            <LinkedSpellRow
               key={s.id}
-              className="flex items-center gap-1 rounded-full border border-sky-800/70 bg-sky-950/40 py-0.5 pr-1 pl-2.5 text-xs"
-            >
-              <SpellMention spell={s} />
-              <button
-                type="button"
-                aria-label={`Unlink ${s.name}`}
-                className="rounded-full px-1 text-stone-500 hover:text-stone-100"
-                onClick={() => onChange(ids.filter((id) => id !== s.id))}
-              >
-                ✕
-              </button>
-            </li>
+              creature={creature}
+              spell={s}
+              onChange={onChange}
+              onUnlink={() => link(ids.filter((id) => id !== s.id))}
+            />
           ))}
         </ul>
       )}
@@ -604,7 +673,7 @@ export function CreatureEditor() {
           ))}
 
           <Section title="Spells">
-            <SpellsEditor creature={t} onChange={(spellIds) => set({ spellIds })} />
+            <SpellsEditor creature={t} onChange={setDraft} />
           </Section>
 
           <Section title="Notes">
