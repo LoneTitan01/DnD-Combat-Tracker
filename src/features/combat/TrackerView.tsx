@@ -17,7 +17,7 @@ import {
   campaignOf,
   inCampaign,
 } from '../../logic';
-import type { Combat, Combatant, CreatureTemplate, ID, LogEntry, Spell } from '../../models';
+import type { Combat, Combatant, CreatureTemplate, ID, LogEntry } from '../../models';
 import { CombatNotes } from './CombatNotes';
 import { ConditionBadges, ConditionEditor } from './Conditions';
 import { MultiTargetPanel, type Targets } from './MultiTarget';
@@ -26,8 +26,12 @@ import { CombatLog, XPTally } from './CombatLog';
 import { CreaturePanel, HPBar } from './DamagePanel';
 import { InitiativeInput } from './InitiativeInput';
 import { RechargeChips, TurnBanners } from './Recharge';
-import { SpellUseChips, limitedSpellIds, useSpellMap } from './SpellUses';
 import type { UpdateCombat } from './useCombat';
+
+/** What kind of creature a token is (e.g. "Goblin"), from its snapshot or its stat block. */
+function kindOf(c: Combatant, template: CreatureTemplate | undefined): string {
+  return (c.creatureName ?? template?.name ?? '').trim();
+}
 
 function Row({
   c,
@@ -43,7 +47,6 @@ function Row({
   multi,
   targeted,
   combat,
-  spells,
 }: {
   c: Combatant;
   index: number;
@@ -59,7 +62,6 @@ function Row({
   multi: boolean;
   targeted: boolean;
   combat: Combat;
-  spells: ReadonlyMap<ID, Spell>;
 }) {
   const targetable = multi && c.kind === 'creature' && !c.isDead;
   const [over, setOver] = useState(false);
@@ -117,6 +119,15 @@ function Row({
             {isCurrent && <span className="mr-1 text-amber-400">▶</span>}
             {c.tokenName}
           </span>
+          {c.kind === 'creature' && kindOf(c, template) && (
+            <span
+              className="ml-2 text-xs text-stone-400"
+              title={template ? `${template.size} ${template.type}` : undefined}
+              aria-label={`Creature: ${kindOf(c, template)}`}
+            >
+              {kindOf(c, template)}
+            </span>
+          )}
           {c.kind === 'player' && <span className="ml-2 text-xs text-sky-300">player</span>}
           {c.isDead && <span className="ml-2 text-xs text-red-400">dead</span>}
           {duplicate && <span className="ml-2 text-xs text-amber-400">duplicate name</span>}
@@ -145,7 +156,6 @@ function Row({
       {c.kind === 'creature' && (
         <div className="mt-1.5 flex flex-col gap-1.5 pl-[5.5rem]">
           <RechargeChips combatant={c} template={template} update={update} />
-          <SpellUseChips combatant={c} template={template} spells={spells} update={update} />
         </div>
       )}
       {isCurrent && c.kind === 'creature' && <TurnBanners combatant={c} template={template} update={update} />}
@@ -216,7 +226,6 @@ export function TrackerView({
   const [targets, setTargets] = useState<Targets>({});
   const dupes = useMemo(() => duplicateTokenNames(combat), [combat]);
   const creatures = useMemo(() => [...templates.values()], [templates]);
-  const spells = useSpellMap(limitedSpellIds(creatures));
   const selected = combat.combatants.find((c) => c.id === selectedId);
   const tpl = (c: Combatant | undefined) => (c?.templateId ? templates.get(c.templateId) : undefined);
   const allDown = livingCreatureCount(combat) === 0;
@@ -349,7 +358,6 @@ export function TrackerView({
                 multi={multi}
                 targeted={c.id in targets}
                 combat={combat}
-                spells={spells}
                 onSelect={() => {
                   if (multi) {
                     toggleTarget(c);

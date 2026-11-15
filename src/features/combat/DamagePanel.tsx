@@ -16,6 +16,7 @@ import { StatBlock } from '../bestiary/StatBlock';
 import { CombatNotes } from './CombatNotes';
 import { ConditionEditor } from './Conditions';
 import { CreatureDisplay } from './CreatureDisplay';
+import { SpellUseChips, limitedSpellIds, useSpellMap } from './SpellUses';
 import type { UpdateCombat } from './useCombat';
 
 export function HPBar({ c }: { c: Combatant }) {
@@ -136,6 +137,7 @@ export function CreaturePanel({
   const [amount, setAmount] = useState('');
   const [damageType, setDamageType] = useState<DamageType | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const spells = useSpellMap(template ? limitedSpellIds([template]) : []);
   useEffect(() => setAmount(''), [c.id]);
   useEffect(() => {
     if (autoFocus) input.current?.focus();
@@ -271,7 +273,10 @@ export function CreaturePanel({
         <CombatNotes key={c.id} combatant={c} update={update} />
       </Card>
       {template ? (
-        <StatBlock creature={template} />
+        <>
+          <SpellUseChips combatant={c} template={template} spells={spells} update={update} />
+          <StatBlock creature={template} />
+        </>
       ) : (
         <p className="text-sm text-stone-500">This creature's stat block was deleted from the bestiary.</p>
       )}
