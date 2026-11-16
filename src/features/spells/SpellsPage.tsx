@@ -1,7 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Button, Card, PageHeader, Select, TextInput } from '../../components/ui';
+import { useUrlFilters } from '../../components/useUrlFilters';
 import { db, restoreSrdSpells } from '../../db';
 import { filterSpells, spellLevelLabel, spellSchools } from '../../logic';
 import { confirmAndDeleteSpell, describeSpellImport, downloadSpells, importSpellFile } from './actions';
@@ -20,20 +21,10 @@ function Tag({ children, title }: { children: string; title: string }) {
 export function SpellsPage() {
   const navigate = useNavigate();
   const all = useLiveQuery(() => db.spells.toArray());
-  const [params, setParams] = useSearchParams();
+  const { params, setFilter, clearFilters } = useUrlFilters();
   const query = params.get('q') ?? '';
   const level = params.get('level') ?? '';
   const school = params.get('school') ?? '';
-  const setFilter = (key: string, value: string) =>
-    setParams(
-      (p) => {
-        const next = new URLSearchParams(p);
-        if (value) next.set(key, value);
-        else next.delete(key);
-        return next;
-      },
-      { replace: true },
-    );
   const shown = useMemo(() => filterSpells(all ?? [], { query, level, school }), [all, query, level, school]);
   const schools = useMemo(() => spellSchools(all ?? []), [all]);
   const filtered = !!(query || level || school);
@@ -133,7 +124,7 @@ export function SpellsPage() {
           ))}
         </Select>
         {filtered && (
-          <Button variant="ghost" onClick={() => setParams({}, { replace: true })}>
+          <Button variant="ghost" onClick={clearFilters}>
             Clear
           </Button>
         )}

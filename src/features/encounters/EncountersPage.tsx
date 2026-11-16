@@ -1,7 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Button, Card, PageHeader, Select, TextInput } from '../../components/ui';
+import { useUrlFilters } from '../../components/useUrlFilters';
 import { db } from '../../db';
 import { allTags, encounterStats, encounterSummary, filterEncounters, groupByTag, inCampaign } from '../../logic';
 import type { CreatureTemplate, Encounter, ID } from '../../models';
@@ -73,19 +74,9 @@ export function EncountersPage() {
   const templates = useMemo(() => new Map((creatures ?? []).map((c) => [c.id, c])), [creatures]);
   const partyLevels = (players ?? []).map((p) => p.level).filter((l): l is number => l !== undefined);
 
-  const [params, setParams] = useSearchParams();
+  const { params, setFilter: setParam } = useUrlFilters();
   const query = params.get('q') ?? '';
   const tag = params.get('tag') ?? '';
-  const setParam = (key: string, value: string) =>
-    setParams(
-      (p) => {
-        const next = new URLSearchParams(p);
-        if (value) next.set(key, value);
-        else next.delete(key);
-        return next;
-      },
-      { replace: true },
-    );
 
   const tags = useMemo(() => allTags(encounters ?? []), [encounters]);
   const groups = useMemo(() => groupByTag(filterEncounters(encounters ?? [], { query, tag })), [encounters, query, tag]);

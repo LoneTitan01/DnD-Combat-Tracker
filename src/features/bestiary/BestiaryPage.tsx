@@ -1,7 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Button, Card, PageHeader, Select, TextInput } from '../../components/ui';
+import { useUrlFilters } from '../../components/useUrlFilters';
 import { db } from '../../db';
 import { CR_VALUES, creatureTypes, filterCreatures, formatHitDice, type CreatureFilter } from '../../logic';
 import { confirmAndDelete, duplicateAndSave } from './actions';
@@ -11,7 +12,7 @@ export function BestiaryPage() {
   const navigate = useNavigate();
   const all = useLiveQuery(() => db.creatures.toArray());
   // Filters live in the URL so they survive going to a stat block and back.
-  const [params, setParams] = useSearchParams();
+  const { params, setFilter, clearFilters } = useUrlFilters();
   const filter: CreatureFilter = {
     query: params.get('q') ?? '',
     type: params.get('type') ?? '',
@@ -19,16 +20,6 @@ export function BestiaryPage() {
     crMax: params.get('crMax') ?? '',
     sort: params.get('sort') === 'cr' ? 'cr' : 'name',
   };
-  const setFilter = (key: string, value: string) =>
-    setParams(
-      (p) => {
-        const next = new URLSearchParams(p);
-        if (value) next.set(key, value);
-        else next.delete(key);
-        return next;
-      },
-      { replace: true },
-    );
 
   const { query, type, crMin, crMax, sort } = filter;
   const shown = useMemo(
@@ -130,7 +121,7 @@ export function BestiaryPage() {
           <option value="cr">Sort by CR</option>
         </Select>
         {filtered && (
-          <Button variant="ghost" onClick={() => setParams({}, { replace: true })}>
+          <Button variant="ghost" onClick={clearFilters}>
             Clear
           </Button>
         )}
