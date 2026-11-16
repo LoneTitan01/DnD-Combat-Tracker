@@ -155,6 +155,13 @@ export interface SpellUsage {
   per: RestType;
 }
 
+export const SPELL_RESOURCES = ['perSpell', 'slots'] as const;
+/** How a creature pays for its spells: so many casts of specific spells, or spell slots by level. */
+export type SpellResource = (typeof SPELL_RESOURCES)[number];
+
+/** Highest spell-slot level. */
+export const MAX_SLOT_LEVEL = 9;
+
 export interface Trait {
   id: ID;
   name: string;
@@ -191,6 +198,10 @@ export interface CreatureTemplate {
   spellIds?: ID[];
   /** Limits on linked spells, by spell id. Spells without an entry are at will. */
   spellUsage?: Record<ID, SpellUsage>;
+  /** Absent = 'perSpell' (limits in `spellUsage`). With 'slots', `spellSlots` is tracked in combat instead. */
+  spellResource?: SpellResource;
+  /** Spell slots by level: index 0 is 1st level, up to 9th. Kept when switching back to per-spell uses. */
+  spellSlots?: number[];
   createdAt: number;
   updatedAt: number;
 }
@@ -320,6 +331,8 @@ export interface Combatant {
   showFakeName?: boolean;
   /** Casts spent on limited-use spells in this combat, by spell id. The limits come from the stat block. */
   spellsUsed?: Record<ID, number>;
+  /** Spell slots spent in this combat, by slot level (1–9). The slot counts come from the stat block. */
+  slotsUsed?: Record<number, number>;
 }
 
 export type DamageModifier = 'normal' | 'resisted' | 'vulnerable' | 'immune';
@@ -333,7 +346,9 @@ export type LogEntryType =
   | 'abilityReady'
   | 'conditionEnded'
   | 'spellCast'
-  | 'spellUsesAdjusted';
+  | 'spellUsesAdjusted'
+  | 'slotUsed'
+  | 'slotRestored';
 
 export interface LogEntry {
   id: ID;
@@ -353,6 +368,8 @@ export interface LogEntry {
   // spell events: the spell, and how many of its uses are spent afterwards
   spellId?: ID;
   usesAfter?: number;
+  // slot events: the slot level (with `usesAfter` as slots spent afterwards)
+  slotLevel?: number;
   // condition events
   condition?: Condition;
   /** Combatant state before this event, for undo. Absent on entries that can't be undone. */

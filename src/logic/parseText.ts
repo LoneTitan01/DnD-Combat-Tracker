@@ -6,6 +6,7 @@ import {
   ABILITIES,
   CONDITIONS,
   DAMAGE_TYPES,
+  MAX_SLOT_LEVEL,
   NONMAGICAL,
   SIZES,
   SPELL_SCHOOLS,
@@ -452,7 +453,36 @@ export function parseCreatureText(text: string): Parsed<CreatureTemplate> {
   // Keep the action kinds in canonical order.
   const order: ActionKind[] = ['action', 'bonus', 'reaction', 'legendary'];
   t.actions = order.flatMap((k) => t.actions.filter((a) => a.kind === k));
+
+  // A Spellcasting trait (or action) that lists slots means the creature casts with spell slots.
+  const slots = parseSpellSlots([...t.traits, ...t.actions].map((x) => x.description).join('\n'));
+  if (slots) {
+    t.spellResource = 'slots';
+    t.spellSlots = slots;
+  }
   return { value: t, warnings };
+}
+
+const SLOT_LEVEL_RE = /\b([1-9])(?:st|nd|rd|th)?[- ]level\s*\(\s*(\d+)\s*slots?\s*\)/gi;
+// A warlock's pact slots: "1st-5th level (2 5th-level slots)".
+const PACT_SLOT_RE = /\(\s*(\d+)\s+([1-9])(?:st|nd|rd|th)?[- ]level\s+slots?\s*\)/gi;
+
+/**
+ * Spell slots by level from spellcasting text, as printed in 2014 stat blocks: "1st level (4 slots):"
+ * or a warlock's "1st-5th level (2 5th-level slots):". Index 0 is 1st level. Undefined when none are listed.
+ */
+export function parseSpellSlots(text: string): number[] | undefined {
+  const slots = Array.from({ length: MAX_SLOT_LEVEL }, () => 0);
+  let found = false;
+  for (const [, level, count] of text.matchAll(SLOT_LEVEL_RE)) {
+    slots[Number(level) - 1] = Math.min(99, Number(count));
+    found = true;
+  }
+  for (const [, count, level] of text.matchAll(PACT_SLOT_RE)) {
+    slots[Number(level) - 1] = Math.min(99, Number(count));
+    found = true;
+  }
+  return found && slots.some((n) => n > 0) ? slots : undefined;
 }
 
 // ---------- spells ----------

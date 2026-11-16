@@ -91,3 +91,40 @@ At Higher Levels. The damage increases by 1d8 for each slot level above 2nd.`);
   await expect(page.getByText('120 feet')).toBeVisible();
   await expect(page.getByText('The damage increases by 1d8')).toBeVisible();
 });
+
+test('bulk add stat blocks: spell slots in a Spellcasting trait are read and tracked as slots', async ({ page }) => {
+  await page.goto('#/bestiary');
+  await page.getByRole('button', { name: 'Bulk add' }).click();
+  await page.getByRole('textbox', { name: 'Stat block 1' }).fill(`Court Mage
+Medium humanoid (any race), any alignment
+Armor Class 12 (15 with mage armor)
+Hit Points 40 (9d8)
+Speed 30 ft.
+STR DEX CON INT WIS CHA
+9 (-1) 14 (+2) 11 (+0) 17 (+3) 12 (+1) 11 (+0)
+Challenge 6 (2,300 XP)
+Spellcasting. The mage is a 9th-level spellcaster. It has the following wizard spells prepared:
+Cantrips (at will): fire bolt, light
+1st level (4 slots): magic missile, shield
+3rd level (3 slots): counterspell, fireball`);
+  await page.getByRole('button', { name: 'Read stat block' }).click();
+
+  // The review form switches to spell slots with the printed counts.
+  await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Court Mage');
+  const resource = page.getByRole('group', { name: 'Track spells by' });
+  await expect(resource.getByRole('button', { name: 'Spell slots' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('textbox', { name: '1st-level slots' })).toHaveValue('4');
+  await expect(page.getByRole('textbox', { name: '2nd-level slots' })).toHaveValue('0');
+  await expect(page.getByRole('textbox', { name: '3rd-level slots' })).toHaveValue('3');
+  await page.getByRole('textbox', { name: '3rd-level slots' }).fill('2');
+  await page.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(page.getByText('All reviewed: 1 stat block added.')).toBeVisible();
+
+  // Saved that way: the editor shows the same slots.
+  await page.goto('#/bestiary');
+  await page.getByRole('link', { name: 'Court Mage' }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.getByRole('group', { name: 'Track spells by' }).getByRole('button', { name: 'Spell slots' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('textbox', { name: '1st-level slots' })).toHaveValue('4');
+  await expect(page.getByRole('textbox', { name: '3rd-level slots' })).toHaveValue('2');
+});
