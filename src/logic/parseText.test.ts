@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NONMAGICAL } from '../models';
-import { parseCreatureText, parseSpellText } from './parseText';
+import { parseCreatureText, parseSpellSlots, parseSpellText } from './parseText';
 
 const GOBLIN_2014 = `Goblin
 Small humanoid (goblinoid), neutral evil
@@ -156,6 +156,34 @@ At Will: Detect Magic`);
     expect(t.traits[0]!.description).toBe(
       'The mage is a 9th-level spellcaster. It has the following wizard spells prepared:\nCantrips (at will): fire bolt, light, mage hand\n1st level (4 slots): detect magic, magic missile\nAt Will: Detect Magic',
     );
+  });
+
+  it('reads spell slots from a Spellcasting trait and switches to tracking slots', () => {
+    const { value: t } = parseCreatureText(`Mage
+Medium humanoid, any alignment
+Spellcasting. The mage is a 9th-level spellcaster. It has the following wizard spells prepared:
+Cantrips (at will): fire bolt, light, mage hand
+1st level (4 slots): detect magic, magic missile
+2nd-level (3 slots): misty step
+3rd level (3 slots): counterspell, fireball
+5th level (1 slot): cone of cold`);
+    expect(t.spellResource).toBe('slots');
+    expect(t.spellSlots).toEqual([4, 3, 3, 0, 1, 0, 0, 0, 0]);
+  });
+
+  it("reads a warlock's pact slots", () => {
+    expect(parseSpellSlots('1st-5th level (2 5th-level slots): hex, hold person')).toEqual([0, 0, 0, 0, 2, 0, 0, 0, 0]);
+  });
+
+  it('leaves per-spell casters and non-casters on per-spell uses', () => {
+    const { value: t } = parseCreatureText(`Drow Mage
+Medium humanoid, neutral evil
+Innate Spellcasting. The drow's spellcasting ability is Charisma. It can innately cast:
+At will: dancing lights
+1/day each: darkness, faerie fire`);
+    expect(t).not.toHaveProperty('spellResource');
+    expect(t).not.toHaveProperty('spellSlots');
+    expect(parseSpellSlots('The mage is a 9th-level spellcaster.')).toBeUndefined();
   });
 
   it('warns about what is missing and never throws on junk', () => {
