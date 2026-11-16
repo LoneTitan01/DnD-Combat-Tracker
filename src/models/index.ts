@@ -238,7 +238,7 @@ export interface Spell {
   updatedAt: number;
 }
 
-/** An umbrella for one group's players, encounters and combats. The bestiary is shared by all campaigns. */
+/** An umbrella for one group's players, locations, encounters and combats. The bestiary is shared by all campaigns. */
 export interface Campaign {
   id: ID;
   name: string;
@@ -260,6 +260,28 @@ export interface Player {
   initiativeBonus: number;
   /** Set on every save; used by sync to pick the newest copy. Missing on players saved before sync existed. */
   updatedAt?: number;
+}
+
+/**
+ * A place in one campaign: a town, a shop in it, a dungeon room. Places nest through `parentId`, so a
+ * location's children are the locations whose parent it is (not stored on the location itself).
+ */
+export interface Location {
+  id: ID;
+  campaignId: ID;
+  name: string;
+  /** The place this one is inside of. */
+  parentId?: ID;
+  /**
+   * Places linked as neighbours (a nearby town, the shop next door). Kept on both locations. Places
+   * that share a parent are siblings too, without being listed here.
+   */
+  siblingIds: ID[];
+  notes: string;
+  /** Names of the NPCs found here. */
+  npcs: string[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface EncounterEntry {
@@ -394,7 +416,7 @@ export interface Combat {
 
 // ---------- sync ----------
 
-export const SYNC_TABLES = ['campaigns', 'creatures', 'spells', 'players', 'encounters', 'combats'] as const;
+export const SYNC_TABLES = ['campaigns', 'creatures', 'spells', 'players', 'locations', 'encounters', 'combats'] as const;
 export type SyncTable = (typeof SYNC_TABLES)[number];
 
 /** A record deleted on some device, so other devices delete it too instead of bringing it back. */
@@ -409,6 +431,7 @@ export interface SyncData {
   creatures: CreatureTemplate[];
   spells: Spell[];
   players: Player[];
+  locations: Location[];
   encounters: Encounter[];
   combats: Combat[];
   deletions: Tombstone[];
