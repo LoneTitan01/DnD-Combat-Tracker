@@ -14,6 +14,7 @@ const NAV = [
   { to: '/combats', label: 'Combats' },
   { to: '/party', label: 'Party' },
   { to: '/locations', label: 'Locations' },
+  { to: '/npcs', label: 'NPCs' },
   { to: '/sync', label: 'Sync' },
 ];
 

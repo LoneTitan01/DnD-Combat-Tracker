@@ -3,16 +3,22 @@ import { Link, useNavigate } from 'react-router';
 import { Button, Card, PageHeader, TextInput } from '../../components/ui';
 import { useUrlFilters } from '../../components/useUrlFilters';
 import { ancestorsOf, filterLocations, locationTree } from '../../logic';
-import { locationPath, useLocations } from './shared';
+import { locationPath, useLocations, useNpcs } from './shared';
 
 export function LocationsPage() {
   const navigate = useNavigate();
   const { locations, campaignId } = useLocations();
   const { params, setFilter, clearFilters } = useUrlFilters();
   const query = params.get('q') ?? '';
+  const npcs = useNpcs();
   const all = locations ?? [];
+  const npcCount = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const n of npcs ?? []) if (n.locationId) counts.set(n.locationId, (counts.get(n.locationId) ?? 0) + 1);
+    return counts;
+  }, [npcs]);
   const tree = useMemo(() => locationTree(all), [all]);
-  const matches = useMemo(() => (query ? filterLocations(all, query) : []), [all, query]);
+  const matches = useMemo(() => (query ? filterLocations(all, query, npcs) : []), [all, query, npcs]);
 
   return (
     <>
@@ -88,9 +94,9 @@ export function LocationsPage() {
                 <Link to={locationPath(l.id)} className="font-semibold text-stone-100 hover:text-amber-300">
                   {l.name}
                 </Link>
-                {l.npcs.length > 0 && (
+                {(npcCount.get(l.id) ?? 0) > 0 && (
                   <span className="ml-auto truncate text-xs text-stone-500">
-                    {l.npcs.length} NPC{l.npcs.length === 1 ? '' : 's'}
+                    {npcCount.get(l.id)} NPC{npcCount.get(l.id) === 1 ? '' : 's'}
                   </span>
                 )}
               </li>

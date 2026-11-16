@@ -1,4 +1,4 @@
-import type { ID, Location } from '../models';
+import type { ID, Location, Npc } from '../models';
 import { newId } from './ids';
 
 export function blankLocation(campaignId: ID, parentId?: ID): Location {
@@ -10,7 +10,6 @@ export function blankLocation(campaignId: ID, parentId?: ID): Location {
     ...(parentId ? { parentId } : {}),
     siblingIds: [],
     notes: '',
-    npcs: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -111,14 +110,17 @@ export function locationTree(list: readonly Location[]): TreeRow[] {
   return rows;
 }
 
-/** Name, notes and NPC search, ignoring case. */
-export function filterLocations(list: readonly Location[], query: string): Location[] {
+/** Name, notes and NPC search, ignoring case. `npcs` are the campaign's NPCs, matched to where they live. */
+export function filterLocations(
+  list: readonly Location[],
+  query: string,
+  npcs: readonly Pick<Npc, 'name' | 'locationId'>[] = [],
+): Location[] {
   const q = query.trim().toLowerCase();
   if (!q) return sortLocations(list);
+  const npcHomes = new Set(npcs.filter((n) => n.locationId && n.name.toLowerCase().includes(q)).map((n) => n.locationId));
   return sortLocations(
-    list.filter(
-      (l) => l.name.toLowerCase().includes(q) || l.notes.toLowerCase().includes(q) || l.npcs.some((n) => n.toLowerCase().includes(q)),
-    ),
+    list.filter((l) => l.name.toLowerCase().includes(q) || l.notes.toLowerCase().includes(q) || npcHomes.has(l.id)),
   );
 }
 
@@ -131,20 +133,14 @@ export function validateLocation(loc: Location, list: readonly Location[]): stri
   return errors;
 }
 
-/** Trims names, drops blank or repeated NPCs and siblings, and links that point at itself or its parent. */
+/** Trims text, and drops repeated siblings and sibling links that point at itself. */
 export function cleanLocation(loc: Location): Location {
-  const npcs: string[] = [];
-  for (const raw of loc.npcs) {
-    const n = raw.trim();
-    if (n && !npcs.some((x) => x.toLowerCase() === n.toLowerCase())) npcs.push(n);
-  }
   const { parentId, ...rest } = loc;
   return {
     ...rest,
     ...(parentId ? { parentId } : {}),
     name: loc.name.trim(),
     notes: loc.notes.trim(),
-    npcs,
     siblingIds: [...new Set(loc.siblingIds)].filter((id) => id !== loc.id),
   };
 }

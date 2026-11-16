@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { Button, Card, Field, PageHeader, Select, TextArea, TextInput } from '../../components/ui';
-import { db, saveLocation } from '../../db';
-import { blankLocation, childOptions, childrenOf, parentOptions, validateLocation } from '../../logic';
-import type { ID, Location } from '../../models';
-import { useLocations } from './shared';
+import { db, saveLocation, setLocationNpcs } from '../../db';
+import { blankLocation, childOptions, childrenOf, findNpcByName, parentOptions, placeLabel, validateLocation } from '../../logic';
+import type { ID, Location, Npc } from '../../models';
+import { useLocations, useNpcs } from './shared';
 
 interface Draft {
   location: Location;
   childIds: ID[];
+  /** Existing NPCs who live here (some may move here from elsewhere on save). */
+  npcIds: ID[];
+  /** Names of NPCs to create here on save. */
+  newNpcs: string[];
 }
 
 /** Removable chips for a list of names, with a picker to add more. */
@@ -68,19 +72,66 @@ function Chips({ label, items, onRemove }: { label: string; items: { key: string
   );
 }
 
-function NpcList({ npcs, onChange }: { npcs: string[]; onChange: (npcs: string[]) => void }) {
+const NPC_NAMES = 'location-npc-names';
+
+/**
+ * The NPCs who live here. Typing an existing NPC's name picks them (moving them here on save);
+ * any other name becomes a new NPC.
+ */
+function NpcList({
+  draft,
+  npcs,
+  locations,
+  onChange,
+}: {
+  draft: Draft;
+  npcs: Npc[];
+  locations: Location[];
+  onChange: (patch: Pick<Draft, 'npcIds' | 'newNpcs'>) => void;
+}) {
   const [name, setName] = useState('');
+  const { npcIds, newNpcs } = draft;
+  const here = draft.location.id;
   const add = () => {
     const n = name.trim();
-    if (n && !npcs.some((x) => x.toLowerCase() === n.toLowerCase())) onChange([...npcs, n]);
+    if (!n) return;
+    const existing = findNpcByName(npcs, n);
+    if (existing) {
+      if (!npcIds.includes(existing.id)) onChange({ npcIds: [...npcIds, existing.id], newNpcs });
+    } else if (!newNpcs.some((x) => x.toLowerCase() === n.toLowerCase())) {
+      onChange({ npcIds, newNpcs: [...newNpcs, n] });
+    }
     setName('');
   };
+  const byId = new Map(npcs.map((x) => [x.id, x]));
+  const chips = [
+    ...npcIds
+      .map((id) => byId.get(id))
+      .filter((x): x is Npc => !!x)
+      .map((x) => {
+        const from = x.locationId && x.locationId !== here ? placeLabel(locations, x.locationId) : '';
+        return { key: x.id, text: from ? `${x.name} (moves from ${from})` : x.name };
+      }),
+    ...newNpcs.map((x) => ({ key: `new:${x}`, text: `${x} (new)` })),
+  ];
+  const remove = (key: string) =>
+    key.startsWith('new:')
+      ? onChange({ npcIds, newNpcs: newNpcs.filter((x) => `new:${x}` !== key) })
+      : onChange({ npcIds: npcIds.filter((i) => i !== key), newNpcs });
   return (
     <div className="flex flex-col gap-1.5">
+      <datalist id={NPC_NAMES}>
+        {npcs
+          .filter((x) => !npcIds.includes(x.id))
+          .map((x) => (
+            <option key={x.id} value={x.name} />
+          ))}
+      </datalist>
       <div className="flex items-end gap-2">
-        <Field label="NPCs" hint="who can be found here" className="flex-1">
+        <Field label="NPCs" hint="who lives here: pick one from the NPC list or type a new name" className="flex-1">
           <TextInput
             value={name}
+            list={NPC_NAMES}
             placeholder="Aubrey"
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
@@ -95,9 +146,7 @@ function NpcList({ npcs, onChange }: { npcs: string[]; onChange: (npcs: string[]
           Add NPC
         </Button>
       </div>
-      {npcs.length > 0 && (
-        <Chips label="NPCs" items={npcs.map((n) => ({ key: n, text: n }))} onRemove={(k) => onChange(npcs.filter((n) => n !== k))} />
-      )}
+      {chips.length > 0 && <Chips label="NPCs" items={chips} onRemove={remove} />}
     </div>
   );
 }
@@ -107,6 +156,7 @@ export function LocationEditor() {
   const [search] = useSearchParams();
   const navigate = useNavigate();
   const { locations, campaignId } = useLocations();
+  const npcs = useNpcs();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [original, setOriginal] = useState('');
   const [notFound, setNotFound] = useState(false);
@@ -121,13 +171,16 @@ export function LocationEditor() {
       setOriginal(JSON.stringify(d));
     };
     if (!id) {
-      start({ location: blankLocation(campaignId, search.get('parent') ?? undefined), childIds: [] });
+      start({ location: blankLocation(campaignId, search.get('parent') ?? undefined), childIds: [], npcIds: [], newNpcs: [] });
       return;
     }
     void db.locations.get(id).then(async (l) => {
       if (!l) return setNotFound(true);
-      const kids = await db.locations.where('parentId').equals(id).toArray();
-      start({ location: l, childIds: kids.map((k) => k.id) });
+      const [kids, residents] = await Promise.all([
+        db.locations.where('parentId').equals(id).toArray(),
+        db.npcs.where('locationId').equals(id).toArray(),
+      ]);
+      start({ location: l, childIds: kids.map((k) => k.id), npcIds: residents.map((n) => n.id), newNpcs: [] });
     });
   }, [id, campaignId, draft, search]);
 
@@ -148,7 +201,7 @@ export function LocationEditor() {
   }, [draft, others]);
 
   if (notFound) return <p className="text-stone-400">That location doesn't exist.</p>;
-  if (!draft || !locations) return null;
+  if (!draft || !locations || !npcs) return null;
 
   const loc = draft.location;
   const set = (patch: Partial<Location>) => setDraft({ ...draft, location: { ...loc, ...patch } });
@@ -170,6 +223,7 @@ export function LocationEditor() {
     if (errors.length) return;
     setSaving(true);
     await saveLocation(loc, draft.childIds);
+    await setLocationNpcs(loc.id, loc.campaignId, draft.npcIds, draft.newNpcs);
     setOriginal(JSON.stringify(draft));
     navigate(`/locations/${loc.id}`, { replace: true });
   };
@@ -224,7 +278,7 @@ export function LocationEditor() {
         </Card>
 
         <Card className="flex flex-col gap-4">
-          <NpcList npcs={loc.npcs} onChange={(npcs) => set({ npcs })} />
+          <NpcList draft={draft} npcs={npcs} locations={locations} onChange={(patch) => setDraft({ ...draft, ...patch })} />
           <Field label="Notes">
             <TextArea
               rows={10}

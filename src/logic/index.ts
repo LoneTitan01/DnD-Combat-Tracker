@@ -9,6 +9,7 @@ export * from './ids';
 export * from './table';
 export * from './creature';
 export * from './party';
+export * from './npcs';
 export * from './encounter';
 export * from './conditions';
 export * from './sync';
