@@ -2,9 +2,9 @@ import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Button, Card } from '../../components/ui';
 import { deleteLocation } from '../../db';
-import { ancestorsOf, childrenOf, siblingsOf } from '../../logic';
+import { ancestorsOf, childrenOf, npcsAt, siblingsOf } from '../../logic';
 import type { Location } from '../../models';
-import { LocationLink, NpcLink, useLocations } from './shared';
+import { LocationLink, NpcLink, useLocations, useNpcs } from './shared';
 
 function Section({ title, empty, children }: { title: string; empty?: string; children?: ReactNode }) {
   return (
@@ -36,6 +36,7 @@ export function LocationPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { locations } = useLocations();
+  const npcs = useNpcs();
 
   if (!locations) return null;
   const loc = locations.find((l) => l.id === id);
@@ -54,6 +55,7 @@ export function LocationPage() {
   const parent = locations.find((l) => l.id === loc.parentId);
   const siblings = siblingsOf(locations, loc);
   const children = childrenOf(locations, loc.id);
+  const residents = npcsAt(npcs ?? [], loc.id);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -125,11 +127,11 @@ export function LocationPage() {
             ) : undefined}
           </Section>
           <Section title="NPCs" empty="None noted.">
-            {loc.npcs.length ? (
+            {residents.length ? (
               <LinkList
-                items={loc.npcs.map((n) => (
-                  <li key={n}>
-                    <NpcLink name={n} />
+                items={residents.map((n) => (
+                  <li key={n.id}>
+                    <NpcLink name={n.name} />
                   </li>
                 ))}
               />

@@ -238,7 +238,7 @@ export interface Spell {
   updatedAt: number;
 }
 
-/** An umbrella for one group's players, locations, encounters and combats. The bestiary is shared by all campaigns. */
+/** An umbrella for one group's players, locations, NPCs, encounters and combats. The bestiary is shared by all campaigns. */
 export interface Campaign {
   id: ID;
   name: string;
@@ -278,10 +278,19 @@ export interface Location {
    */
   siblingIds: ID[];
   notes: string;
-  /** Names of the NPCs found here. */
-  npcs: string[];
   createdAt: number;
   updatedAt: number;
+}
+
+/** A non-player character in one campaign. */
+export interface Npc {
+  id: ID;
+  campaignId: ID;
+  name: string;
+  /** The location the NPC lives in. Unset when it's unknown. */
+  locationId?: ID;
+  /** Set on every save; used by sync to pick the newest copy. */
+  updatedAt?: number;
 }
 
 export interface EncounterEntry {
@@ -416,7 +425,7 @@ export interface Combat {
 
 // ---------- sync ----------
 
-export const SYNC_TABLES = ['campaigns', 'creatures', 'spells', 'players', 'locations', 'encounters', 'combats'] as const;
+export const SYNC_TABLES = ['campaigns', 'creatures', 'spells', 'players', 'locations', 'npcs', 'encounters', 'combats'] as const;
 export type SyncTable = (typeof SYNC_TABLES)[number];
 
 /** A record deleted on some device, so other devices delete it too instead of bringing it back. */
@@ -432,6 +441,7 @@ export interface SyncData {
   spells: Spell[];
   players: Player[];
   locations: Location[];
+  npcs: Npc[];
   encounters: Encounter[];
   combats: Combat[];
   deletions: Tombstone[];

@@ -34,6 +34,15 @@ describe('mergeSyncData', () => {
     expect(mergeSyncData(remote, local).players).toEqual([]);
   });
 
+  it('merges NPCs and their deletions', () => {
+    const npc = (id: string, name: string, updatedAt: number) => ({ id, campaignId: 'c', name, updatedAt });
+    const m = mergeSyncData(
+      data({ npcs: [npc('a', 'Old Tom', 5), npc('b', 'Sildar', 5)] }),
+      data({ npcs: [npc('a', 'Old Tom (newer)', 6)], deletions: [{ table: 'npcs', id: 'b', deletedAt: 10 }] }),
+    );
+    expect(m.npcs.map((n) => n.name)).toEqual(['Old Tom (newer)']);
+  });
+
   it('a copy saved after the deletion survives', () => {
     const m = mergeSyncData(
       data({ players: [player('a', 'Aria again', 20)] }),

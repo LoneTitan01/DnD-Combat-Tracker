@@ -13,8 +13,8 @@ test('locations: nest places, link siblings and NPCs, navigate, delete', async (
   // A town with notes and an NPC.
   await page.getByRole('button', { name: 'New location' }).click();
   await page.getByRole('textbox', { name: 'Name' }).fill('Leilon');
-  await page.getByRole('textbox', { name: 'NPCs' }).fill('Captain Rhinehart');
-  await page.getByRole('textbox', { name: 'NPCs' }).press('Enter');
+  await page.getByRole('combobox', { name: 'NPCs' }).fill('Captain Rhinehart');
+  await page.getByRole('combobox', { name: 'NPCs' }).press('Enter');
   await page.getByRole('textbox', { name: 'Notes' }).fill('A town rebuilding on the High Road.');
   await save(page, 'Leilon');
   await expect(page.getByText('A town rebuilding on the High Road.')).toBeVisible();
@@ -23,7 +23,7 @@ test('locations: nest places, link siblings and NPCs, navigate, delete', async (
   await page.getByRole('button', { name: 'Add a place inside' }).click();
   await expect(page.getByRole('combobox', { name: 'Inside of' })).toHaveValue(/.+/);
   await page.getByRole('textbox', { name: 'Name' }).fill("Aubrey's Peculiarities Shoppe");
-  await page.getByRole('textbox', { name: 'NPCs' }).fill('Aubrey');
+  await page.getByRole('combobox', { name: 'NPCs' }).fill('Aubrey');
   await page.getByRole('button', { name: 'Add NPC' }).click();
   await save(page, "Aubrey's Peculiarities Shoppe");
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText('Leilon');

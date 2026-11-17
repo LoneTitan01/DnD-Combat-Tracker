@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import Dexie from 'dexie';
 import { afterEach, describe, expect, it } from 'vitest';
-import { TrackerDB, deleteCampaign, ensureCampaign, moveEncounterCombats, saveCampaign, saveCombat, saveEncounter, saveLocation, savePlayer } from '.';
+import { TrackerDB, deleteCampaign, ensureCampaign, moveEncounterCombats, saveCampaign, saveCombat, saveEncounter, saveLocation, saveNpc, savePlayer } from '.';
 import { blankEncounter, blankLocation, campaignOf, newCampaign, stageCombat } from '../logic';
 import { makeCombat } from '../logic/testUtils';
 import { DEFAULT_CAMPAIGN_ID } from '../models';
@@ -53,7 +53,7 @@ describe('campaigns', () => {
     expect(second!.id).not.toBe(DEFAULT_CAMPAIGN_ID);
   });
 
-  it('deleting a campaign deletes its players, locations, encounters and combats only', async () => {
+  it('deleting a campaign deletes its players, locations, NPCs, encounters and combats only', async () => {
     open = new TrackerDB(`campaign-delete-${++n}`);
     const a = newCampaign('A');
     const b = newCampaign('B');
@@ -63,6 +63,8 @@ describe('campaigns', () => {
     await savePlayer({ id: 'pb', campaignId: b.id, name: 'Brom', initiativeBonus: 0 }, open);
     await saveLocation({ ...blankLocation(a.id), id: 'la', name: 'Leilon' }, [], open);
     await saveLocation({ ...blankLocation(b.id), id: 'lb', name: 'Phandalin' }, [], open);
+    await saveNpc({ id: 'na', campaignId: a.id, name: 'Old Tom', locationId: 'la' }, open);
+    await saveNpc({ id: 'nb', campaignId: b.id, name: 'Sildar' }, open);
     const ea = { ...blankEncounter(), id: 'ea', campaignId: a.id };
     await saveEncounter(ea, open);
     await saveCombat(stageCombat(ea, new Map()), open);
@@ -71,9 +73,10 @@ describe('campaigns', () => {
     expect((await open.campaigns.toArray()).map((c) => c.name)).toEqual(['B']);
     expect((await open.players.toArray()).map((p) => p.id)).toEqual(['pb']);
     expect((await open.locations.toArray()).map((l) => l.id)).toEqual(['lb']);
+    expect((await open.npcs.toArray()).map((p) => p.id)).toEqual(['nb']);
     expect(await open.encounters.count()).toBe(0);
     expect(await open.combats.count()).toBe(0);
-    expect((await open.deletions.toArray()).map((d) => d.table).sort()).toEqual(['campaigns', 'combats', 'encounters', 'locations', 'players']);
+    expect((await open.deletions.toArray()).map((d) => d.table).sort()).toEqual(['campaigns', 'combats', 'encounters', 'locations', 'npcs', 'players']);
   });
 
   it('staged combats take their encounter campaign and follow it when moved', async () => {
