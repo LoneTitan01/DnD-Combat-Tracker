@@ -15,3 +15,4 @@ export * from './sync';
 export * from './campaign';
 export * from './spells';
 export * from './parseText';
+export * from './locations';

@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie';
 import { campaignOf, defaultCampaign, inCampaign, newCampaign } from '../logic/campaign';
 import { normalizeConditions } from '../logic/conditions';
 import { normalizeCreature } from '../logic/creature';
+import { planLocationDelete, planLocationSave } from '../logic/locations';
 import { normalizeSpell } from '../logic/spells';
 import { mergeSyncData, sameSyncData, stampOf, tombstoneKey } from '../logic/sync';
 import {
@@ -12,6 +13,7 @@ import {
   type CreatureTemplate,
   type Encounter,
   type ID,
+  type Location,
   type Player,
   type Spell,
   type SyncData,
@@ -30,6 +32,7 @@ export class TrackerDB extends Dexie {
   creatures!: EntityTable<CreatureTemplate, 'id'>;
   spells!: EntityTable<Spell, 'id'>;
   players!: EntityTable<Player, 'id'>;
+  locations!: EntityTable<Location, 'id'>;
   encounters!: EntityTable<Encounter, 'id'>;
   combats!: EntityTable<Combat, 'id'>;
   deletions!: EntityTable<StoredTombstone, 'key'>;
@@ -78,6 +81,8 @@ export class TrackerDB extends Dexie {
       });
     // v5: the spell list, which stat blocks link to by id.
     this.version(5).stores({ spells: 'id, name, level, updatedAt' });
+    // v6: locations, kept per campaign and nested through parentId.
+    this.version(6).stores({ locations: 'id, campaignId, parentId, name' });
   }
 }
 
@@ -134,28 +139,31 @@ export async function ensureCampaign(database: TrackerDB = db): Promise<void> {
 
 export interface CampaignContents {
   players: Player[];
+  locations: Location[];
   encounters: Encounter[];
   combats: Combat[];
 }
 
 export async function campaignContents(id: ID, database: TrackerDB = db): Promise<CampaignContents> {
-  const [players, encounters, combats] = await Promise.all([
+  const [players, locations, encounters, combats] = await Promise.all([
     database.players.filter(inCampaign(id)).toArray(),
+    database.locations.filter(inCampaign(id)).toArray(),
     database.encounters.filter(inCampaign(id)).toArray(),
     database.combats.filter(inCampaign(id)).toArray(),
   ]);
-  return { players, encounters, combats };
+  return { players, locations, encounters, combats };
 }
 
-/** Deletes a campaign with its players, encounters and combats. Stat blocks are shared and stay. */
+/** Deletes a campaign with its players, locations, encounters and combats. Stat blocks are shared and stay. */
 export async function deleteCampaign(id: ID, database: TrackerDB = db): Promise<void> {
-  const tables = [database.campaigns, database.players, database.encounters, database.combats, database.deletions];
+  const tables = [database.campaigns, database.players, database.locations, database.encounters, database.combats, database.deletions];
   await database.transaction('rw', tables, async () => {
     const contents = await campaignContents(id, database);
     const deletedAt = Date.now();
     const doomed: Tombstone[] = [
       { table: 'campaigns', id, deletedAt },
       ...contents.players.map((r) => ({ table: 'players' as const, id: r.id, deletedAt })),
+      ...contents.locations.map((r) => ({ table: 'locations' as const, id: r.id, deletedAt })),
       ...contents.encounters.map((r) => ({ table: 'encounters' as const, id: r.id, deletedAt })),
       ...contents.combats.map((r) => ({ table: 'combats' as const, id: r.id, deletedAt })),
     ];
@@ -296,6 +304,37 @@ export async function deletePlayer(id: ID, database: TrackerDB = db): Promise<vo
   await deleteWithTombstone(database, 'players', id);
 }
 
+// ---------- locations ----------
+
+/**
+ * Saves a location with the given children (see `planLocationSave`), updating the other locations
+ * whose parent or sibling links change.
+ */
+export async function saveLocation(loc: Location, childIds: readonly ID[], database: TrackerDB = db): Promise<void> {
+  await database.transaction('rw', database.locations, async () => {
+    const all = await database.locations.filter(inCampaign(loc.campaignId)).toArray();
+    const now = Date.now();
+    await database.locations.bulkPut(planLocationSave(all, loc, childIds).map((l) => ({ ...l, updatedAt: now })));
+  });
+  changed();
+}
+
+/** Deletes a location. The places inside it move up to its parent; sibling links to it are dropped. */
+export async function deleteLocation(id: ID, database: TrackerDB = db): Promise<void> {
+  await database.transaction('rw', database.locations, database.deletions, async () => {
+    const gone = await database.locations.get(id);
+    if (gone) {
+      const all = await database.locations.filter(inCampaign(gone.campaignId)).toArray();
+      const now = Date.now();
+      await database.locations.bulkPut(planLocationDelete(all, id).map((l) => ({ ...l, updatedAt: now })));
+    }
+    await database.locations.delete(id);
+    const t: Tombstone = { table: 'locations', id, deletedAt: Date.now() };
+    await database.deletions.put({ ...t, key: tombstoneKey(t) });
+  });
+  changed();
+}
+
 // ---------- encounters ----------
 
 export async function saveEncounter(e: Encounter, database: TrackerDB = db): Promise<void> {
@@ -410,16 +449,17 @@ export async function encountersUsingCreature(id: ID, database: TrackerDB = db):
 
 /** Everything sync covers, as stored on this device. */
 export async function localSyncData(database: TrackerDB = db): Promise<SyncData> {
-  const [campaigns, creatures, spells, players, encounters, combats, deletions] = await Promise.all([
+  const [campaigns, creatures, spells, players, locations, encounters, combats, deletions] = await Promise.all([
     database.campaigns.toArray(),
     database.creatures.toArray(),
     database.spells.toArray(),
     database.players.toArray(),
+    database.locations.toArray(),
     database.encounters.toArray(),
     database.combats.toArray(),
     database.deletions.toArray(),
   ]);
-  return { campaigns, creatures, spells, players, encounters, combats, deletions: deletions.map(({ key: _key, ...t }) => t) };
+  return { campaigns, creatures, spells, players, locations, encounters, combats, deletions: deletions.map(({ key: _key, ...t }) => t) };
 }
 
 export interface MergeResult {

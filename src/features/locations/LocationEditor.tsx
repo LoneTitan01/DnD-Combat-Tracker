@@ -1,0 +1,258 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { Button, Card, Field, PageHeader, Select, TextArea, TextInput } from '../../components/ui';
+import { db, saveLocation } from '../../db';
+import { blankLocation, childOptions, childrenOf, parentOptions, validateLocation } from '../../logic';
+import type { ID, Location } from '../../models';
+import { useLocations } from './shared';
+
+interface Draft {
+  location: Location;
+  childIds: ID[];
+}
+
+/** Removable chips for a list of names, with a picker to add more. */
+function PickList({
+  label,
+  hint,
+  chosen,
+  options,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  chosen: Location[];
+  options: Location[];
+  onChange: (ids: ID[]) => void;
+}) {
+  const ids = chosen.map((l) => l.id);
+  const left = options.filter((o) => !ids.includes(o.id));
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Field label={label} hint={hint}>
+        <Select
+          value=""
+          disabled={left.length === 0}
+          onChange={(e) => e.target.value && onChange([...ids, e.target.value])}
+        >
+          <option value="">{left.length ? 'Add…' : 'No other locations to add'}</option>
+          {left.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {chosen.length > 0 && <Chips label={label} items={chosen.map((l) => ({ key: l.id, text: l.name }))} onRemove={(k) => onChange(ids.filter((i) => i !== k))} />}
+    </div>
+  );
+}
+
+function Chips({ label, items, onRemove }: { label: string; items: { key: string; text: string }[]; onRemove: (key: string) => void }) {
+  return (
+    <ul aria-label={label} className="flex flex-wrap gap-1.5">
+      {items.map((it) => (
+        <li key={it.key} className="flex items-center gap-1 rounded-full border border-stone-700 bg-stone-800/60 py-0.5 pl-2.5 pr-1 text-xs text-stone-200">
+          {it.text}
+          <button
+            type="button"
+            aria-label={`Remove ${it.text}`}
+            className="rounded-full px-1 text-stone-400 hover:bg-stone-700 hover:text-stone-100"
+            onClick={() => onRemove(it.key)}
+          >
+            ×
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function NpcList({ npcs, onChange }: { npcs: string[]; onChange: (npcs: string[]) => void }) {
+  const [name, setName] = useState('');
+  const add = () => {
+    const n = name.trim();
+    if (n && !npcs.some((x) => x.toLowerCase() === n.toLowerCase())) onChange([...npcs, n]);
+    setName('');
+  };
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-end gap-2">
+        <Field label="NPCs" hint="who can be found here" className="flex-1">
+          <TextInput
+            value={name}
+            placeholder="Aubrey"
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                add();
+              }
+            }}
+          />
+        </Field>
+        <Button onClick={add} disabled={!name.trim()}>
+          Add NPC
+        </Button>
+      </div>
+      {npcs.length > 0 && (
+        <Chips label="NPCs" items={npcs.map((n) => ({ key: n, text: n }))} onRemove={(k) => onChange(npcs.filter((n) => n !== k))} />
+      )}
+    </div>
+  );
+}
+
+export function LocationEditor() {
+  const { id } = useParams();
+  const [search] = useSearchParams();
+  const navigate = useNavigate();
+  const { locations, campaignId } = useLocations();
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [original, setOriginal] = useState('');
+  const [notFound, setNotFound] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Load once (not live) so background changes don't clobber the draft.
+  useEffect(() => {
+    if (draft || !campaignId) return;
+    const start = (d: Draft) => {
+      setDraft(d);
+      setOriginal(JSON.stringify(d));
+    };
+    if (!id) {
+      start({ location: blankLocation(campaignId, search.get('parent') ?? undefined), childIds: [] });
+      return;
+    }
+    void db.locations.get(id).then(async (l) => {
+      if (!l) return setNotFound(true);
+      const kids = await db.locations.where('parentId').equals(id).toArray();
+      start({ location: l, childIds: kids.map((k) => k.id) });
+    });
+  }, [id, campaignId, draft, search]);
+
+  const dirty = draft !== null && original !== '' && JSON.stringify(draft) !== original;
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+
+  // The saved locations, with this draft's own links in place of its saved ones.
+  const others = useMemo(() => (locations ?? []).filter((l) => l.id !== draft?.location.id), [locations, draft?.location.id]);
+  const errors = useMemo(() => {
+    if (!draft) return [];
+    const withDraft = [...others.map((o) => (draft.childIds.includes(o.id) ? { ...o, parentId: draft.location.id } : o)), draft.location];
+    return validateLocation(draft.location, withDraft);
+  }, [draft, others]);
+
+  if (notFound) return <p className="text-stone-400">That location doesn't exist.</p>;
+  if (!draft || !locations) return null;
+
+  const loc = draft.location;
+  const set = (patch: Partial<Location>) => setDraft({ ...draft, location: { ...loc, ...patch } });
+  const byId = new Map(others.map((o) => [o.id, o]));
+  const pick = (ids: ID[]) => ids.map((i) => byId.get(i)).filter((l): l is Location => !!l);
+  // Options are worked out against the draft's links, so a place can't end up inside itself.
+  const draftList = [
+    ...others.map((o) =>
+      draft.childIds.includes(o.id) ? { ...o, parentId: loc.id } : o.parentId === loc.id ? { ...o, parentId: undefined } : o,
+    ),
+    loc,
+  ];
+  const parents = parentOptions(draftList, loc.id);
+  const kids = childOptions(draftList, loc);
+  const sharedParent = loc.parentId ? childrenOf(others, loc.parentId).length : 0;
+
+  const save = async () => {
+    setShowErrors(true);
+    if (errors.length) return;
+    setSaving(true);
+    await saveLocation(loc, draft.childIds);
+    setOriginal(JSON.stringify(draft));
+    navigate(`/locations/${loc.id}`, { replace: true });
+  };
+
+  const cancel = () => {
+    if (dirty && !confirm('Discard unsaved changes?')) return;
+    navigate(id ? `/locations/${id}` : loc.parentId ? `/locations/${loc.parentId}` : '/locations');
+  };
+
+  return (
+    <>
+      <PageHeader title={id ? 'Edit location' : 'New location'} />
+      <form
+        className="mx-auto flex max-w-3xl flex-col gap-4 pb-24"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <Card className="flex flex-col gap-4">
+          <Field label="Name">
+            <TextInput value={loc.name} autoFocus={!id} placeholder="Leilon" onChange={(e) => set({ name: e.target.value })} />
+          </Field>
+          <Field label="Inside of" hint="optional">
+            <Select value={loc.parentId ?? ''} onChange={(e) => set({ parentId: e.target.value || undefined })}>
+              <option value="">Nowhere (top level)</option>
+              {parents.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <PickList
+            label="Places inside"
+            hint="optional"
+            chosen={pick(draft.childIds)}
+            options={kids}
+            onChange={(childIds) => setDraft({ ...draft, childIds })}
+          />
+          <PickList
+            label="Sibling locations"
+            hint={
+              sharedParent
+                ? `optional; the ${sharedParent} other place${sharedParent === 1 ? '' : 's'} in the same parent ${sharedParent === 1 ? 'is' : 'are'} listed already`
+                : 'optional, e.g. a neighbouring town'
+            }
+            chosen={pick(loc.siblingIds)}
+            options={others}
+            onChange={(siblingIds) => set({ siblingIds })}
+          />
+        </Card>
+
+        <Card className="flex flex-col gap-4">
+          <NpcList npcs={loc.npcs} onChange={(npcs) => set({ npcs })} />
+          <Field label="Notes">
+            <TextArea
+              rows={10}
+              value={loc.notes}
+              placeholder="What it looks like, who runs it, rumours, what's for sale…"
+              onChange={(e) => set({ notes: e.target.value })}
+            />
+          </Field>
+        </Card>
+
+        <div className="fixed inset-x-0 bottom-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-end gap-3 px-4 py-3">
+            {showErrors && errors.length > 0 && (
+              <ul className="mr-auto text-xs text-red-400">
+                {errors.map((e) => (
+                  <li key={e}>{e}</li>
+                ))}
+              </ul>
+            )}
+            <Button variant="ghost" onClick={cancel}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={saving}>
+              Save location
+            </Button>
+          </div>
+        </div>
+      </form>
+    </>
+  );
+}

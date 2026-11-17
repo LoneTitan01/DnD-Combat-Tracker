@@ -13,6 +13,7 @@ const NAV = [
   { to: '/encounters', label: 'Encounters' },
   { to: '/combats', label: 'Combats' },
   { to: '/party', label: 'Party' },
+  { to: '/locations', label: 'Locations' },
   { to: '/sync', label: 'Sync' },
 ];
 
