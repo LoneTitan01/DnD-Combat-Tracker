@@ -17,6 +17,8 @@ export type TableView =
 
 export interface TableGroup {
   kind: CombatantKind;
+  /** A creature on the players' side (shown green rather than red). Always false for players. */
+  ally: boolean;
   names: string[];
   /** Parallel to `names`: the kind of creature players see (e.g. "Boar"), or null (players, or nothing to show). */
   creatures: Array<string | null>;
@@ -33,6 +35,9 @@ export function shownCreature(c: Combatant, templates?: TemplateNames): string |
     : (c.creatureName ?? (c.templateId ? templates?.get(c.templateId)?.name : undefined));
   return t?.trim() || null;
 }
+
+/** Whether a combatant is a creature fighting on the players' side. */
+export const isAlly = (c: Combatant | undefined): boolean => c?.kind === 'creature' && !!c.ally;
 
 const alive = (c: Combatant | undefined): c is Combatant => !!c && !c.isDead;
 
@@ -67,6 +72,7 @@ export function tableView(combat: Combat | null | undefined, templates?: Templat
   const currentSet = new Set(currentIdx);
   const current: TableGroup = {
     kind: list[combat.turnIndex]?.kind ?? 'creature',
+    ally: isAlly(list[combat.turnIndex]),
     names: currentIdx.map((i) => list[i]!.tokenName),
     creatures: currentIdx.map((i) => shownCreature(list[i]!, templates)),
   };
@@ -82,6 +88,7 @@ export function tableView(combat: Combat | null | undefined, templates?: Templat
     const group = groupFrom(list, idx, currentSet);
     upNext = {
       kind: list[idx]!.kind,
+      ally: isAlly(list[idx]),
       names: group.map((i) => list[i]!.tokenName),
       creatures: group.map((i) => shownCreature(list[i]!, templates)),
       newRound: combat.turnIndex + step >= n,

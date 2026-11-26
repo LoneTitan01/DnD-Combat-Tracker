@@ -309,6 +309,16 @@ export function setCreatureDisplay(
   return updateCombatant(combat, id, (x) => ({ ...x, ...change }));
 }
 
+/** Marks a creature as fighting on the players' side (or not). Not logged. */
+export function setAlly(combat: Combat, id: ID, ally: boolean): Combat {
+  const c = findCombatant(combat, id);
+  if (!c || c.kind !== 'creature' || !!c.ally === ally) return combat;
+  return updateCombatant(combat, id, (x) => {
+    const { ally: _old, ...rest } = x;
+    return ally ? { ...rest, ally: true } : rest;
+  });
+}
+
 // ---------- undo ----------
 
 const HP_TYPES = new Set(['damage', 'heal', 'tempHP']);

@@ -2,7 +2,7 @@ import { CONDITIONS, type ActiveCondition, type Combat, type CombatantKind, type
 import { removeCondition, setCondition } from './conditions';
 import { defaultRng, type Rng } from './dice';
 import { changeInitiative } from './staging';
-import { shownCreature, tableView, type TableView, type TemplateNames } from './table';
+import { isAlly, shownCreature, tableView, type TableView, type TemplateNames } from './table';
 
 /*
  * Players' own devices ⇄ the DM's combat screen, over a peer-to-peer link. The DM's screen is the
@@ -38,6 +38,8 @@ export interface RemoteTurn {
   id: ID;
   name: string;
   kind: CombatantKind;
+  /** A creature on the players' side. */
+  ally: boolean;
   /** The kind of creature players see (real or the DM's fake), or null. */
   creature: string | null;
   current: boolean;
@@ -76,6 +78,7 @@ export function remoteView(combat: Combat, templates?: TemplateNames): RemoteVie
             id: c.id,
             name: c.tokenName,
             kind: c.kind,
+            ally: isAlly(c),
             creature: shownCreature(c, templates),
             current: i === combat.turnIndex,
           }))

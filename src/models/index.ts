@@ -360,6 +360,8 @@ export interface Combatant {
   fakeName?: string;
   /** Player view shows `fakeName` instead of the real kind of creature. */
   showFakeName?: boolean;
+  /** A creature fighting on the players' side. Its name shows green instead of red to players. */
+  ally?: boolean;
   /** Casts spent on limited-use spells in this combat, by spell id. The limits come from the stat block. */
   spellsUsed?: Record<ID, number>;
   /** Spell slots spent in this combat, by slot level (1–9). The slot counts come from the stat block. */

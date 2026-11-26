@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Combat } from '../models';
-import { setCreatureDisplay } from './combat';
+import { setAlly, setCreatureDisplay } from './combat';
+import { remoteView } from './remote';
 import { tableView } from './table';
 import { makeCombat, makeCombatant } from './testUtils';
 
@@ -28,8 +29,8 @@ describe('tableView', () => {
     expect(tableView(example(0))).toEqual({
       status: 'active',
       round: 2,
-      current: { kind: 'player', names: ['Aria', 'Brom'], creatures: [null, null] },
-      upNext: { kind: 'creature', names: ['Goblin 2'], creatures: [null], newRound: false },
+      current: { kind: 'player', ally: false, names: ['Aria', 'Brom'], creatures: [null, null] },
+      upNext: { kind: 'creature', ally: false, names: ['Goblin 2'], creatures: [null], newRound: false },
     });
   });
 
@@ -113,5 +114,27 @@ describe('tableView kind of creature', () => {
   it('never shows one for players', () => {
     const p = makeCombatant({ kind: 'player', tokenName: 'Aria', creatureName: 'Elf' });
     expect(current(makeCombat([p]))).toEqual([null]);
+  });
+});
+
+describe('allies', () => {
+  it('flags an allied creature in the table and player-device views', () => {
+    let c = example(2);
+    const goblin = c.combatants[2]!;
+    expect(tableView(c)).toMatchObject({ current: { ally: false } });
+    c = setAlly(c, goblin.id, true);
+    expect(tableView(c)).toMatchObject({ current: { kind: 'creature', ally: true }, upNext: { ally: false } });
+    expect(remoteView(c).order.map((t) => t.ally)).toEqual([false, false, true, false]);
+  });
+
+  it('only marks creatures, clears the flag when unset, and ignores no-op changes', () => {
+    const c = example(0);
+    const [aria, , goblin] = c.combatants;
+    expect(setAlly(c, aria!.id, true)).toBe(c);
+    expect(setAlly(c, goblin!.id, false)).toBe(c);
+    const on = setAlly(c, goblin!.id, true);
+    expect(on.combatants[2]!.ally).toBe(true);
+    expect(setAlly(on, goblin!.id, true)).toBe(on);
+    expect('ally' in setAlly(on, goblin!.id, false).combatants[2]!).toBe(false);
   });
 });

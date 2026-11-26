@@ -1,5 +1,5 @@
 import { Button, TextInput } from '../../components/ui';
-import { setCreatureDisplay } from '../../logic';
+import { setAlly, setCreatureDisplay } from '../../logic';
 import type { Combatant, CreatureTemplate } from '../../models';
 import type { UpdateCombat } from './useCombat';
 
@@ -44,6 +44,15 @@ export function CreatureDisplay({
       {fake && !c.fakeName?.trim() && (
         <p className="text-xs text-stone-500">No fake creature entered, so players see only the token name.</p>
       )}
-          </div>
+      <label className="flex items-center gap-2 text-sm text-stone-300">
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-emerald-500"
+          checked={!!c.ally}
+          onChange={(e) => update((cb) => setAlly(cb, c.id, e.target.checked))}
+        />
+        Ally of the players <span className="text-xs text-stone-500">(name shows green instead of red)</span>
+      </label>
+    </div>
   );
 }

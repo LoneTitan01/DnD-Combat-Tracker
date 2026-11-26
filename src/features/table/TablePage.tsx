@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 import { db } from '../../db';
 import { nextTurn, tableView, type TableGroup, type TableView } from '../../logic';
 import type { Combat } from '../../models';
+import { nameColor } from './nameColor';
 import { openChannel, type TableMessage } from './tableChannel';
 
 /**
@@ -141,7 +142,7 @@ export function TableScreen({ view }: { view: TableView }) {
           group={current}
           className={`font-display font-bold ${
             current.names.length > 2 ? 'text-[clamp(2.5rem,7vw,6rem)]' : 'text-[clamp(3.5rem,11vw,9rem)]'
-          } ${current.kind === 'creature' ? 'text-red-300' : 'text-white'}`}
+          } ${nameColor(current)}`}
         />
       </main>
 
@@ -158,7 +159,7 @@ export function TableScreen({ view }: { view: TableView }) {
             <span className="flex flex-col">
               <span
                 className={`font-display text-[clamp(2rem,5vw,4rem)] font-bold leading-tight ${
-                  upNext.kind === 'creature' ? 'text-red-300' : 'text-white'
+                  nameColor(upNext)
                 }`}
               >
                 {upNext.names.join(', ')}
