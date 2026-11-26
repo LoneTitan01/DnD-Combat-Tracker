@@ -5,6 +5,7 @@ import { ariaKey, keyLabel, useHotkeys } from '../settings/hotkeys';
 import { Button, Card, Select } from '../../components/ui';
 import { db } from '../../db';
 import {
+  creatureShownOf,
   addCreature,
   addPlayer,
   changeInitiative,
@@ -133,9 +134,14 @@ function Row({
           {c.kind === 'creature' && c.ally && <span className="ml-2 text-xs text-emerald-300">ally</span>}
           {c.isDead && <span className="ml-2 text-xs text-red-400">dead</span>}
           {duplicate && <span className="ml-2 text-xs text-amber-400">duplicate name</span>}
-          {c.showFakeName && (
+          {c.kind === 'creature' && creatureShownOf(c) === 'fake' && c.fakeName?.trim() && (
             <span className="ml-2 text-xs text-violet-300" title="Players see a fake creature">
-              🎭 {c.fakeName?.trim() ? `shown as ${c.fakeName.trim()}` : 'creature hidden'}
+              🎭 shown as {c.fakeName.trim()}
+            </span>
+          )}
+          {c.kind === 'creature' && creatureShownOf(c) === 'real' && (
+            <span className="ml-2 text-xs text-violet-300" title="Players see what kind of creature this is">
+              👁 creature shown
             </span>
           )}
           {c.notes && (

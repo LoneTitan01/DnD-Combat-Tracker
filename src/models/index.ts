@@ -332,6 +332,9 @@ export interface AbilityState {
 
 export type CombatantKind = 'creature' | 'player';
 
+/** What the player view shows as a creature's kind: nothing, its real stat block name, or the DM's fake. */
+export type CreatureShown = 'hidden' | 'real' | 'fake';
+
 export interface Combatant {
   id: ID;
   kind: CombatantKind;
@@ -356,9 +359,11 @@ export interface Combatant {
   notes?: string;
   /** What kind of creature this is: its stat block's name (e.g. "Boar"), snapshotted when added. Missing on older combats. */
   creatureName?: string;
-  /** What the player view shows as the kind of creature while `showFakeName` is on. Blank = nothing shown. */
+  /** What the player view shows as the kind of creature while `creatureShown` is 'fake'. Blank = nothing shown. */
   fakeName?: string;
-  /** Player view shows `fakeName` instead of the real kind of creature. */
+  /** What kind of creature the player view shows. Missing = hidden (the default). */
+  creatureShown?: CreatureShown;
+  /** @deprecated Older combats: true meant 'fake'. Read through `creatureShownOf`. */
   showFakeName?: boolean;
   /** A creature fighting on the players' side. Its name shows green instead of red to players. */
   ally?: boolean;

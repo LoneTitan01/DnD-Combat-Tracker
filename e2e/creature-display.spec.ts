@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { next, row, seed, select, setInitiative, turnOrder } from './helpers';
 
-test('player view: kind of creature under the name, real or the DM’s fake', async ({ page, context }) => {
+test('player view: kind of creature hidden by default, then real or the DM’s fake', async ({ page, context }) => {
   await seed(page);
   await page.getByRole('button', { name: 'Stage' }).click();
   await expect(page).toHaveURL(/#\/combats\/[^/]+$/);
@@ -19,14 +19,21 @@ test('player view: kind of creature under the name, real or the DM’s fake', as
   await table.goto(`#/table?combat=${combatId}`);
   const main = table.locator('main');
   const upNext = table.getByLabel('Up next');
-  // Goblin 1 is up, Dragon 1 next.
+  // Goblin 1 is up, Dragon 1 next. Nobody's kind of creature is shown until the DM reveals it.
+  await expect(main).toContainText('Goblin 1');
+  await expect(main.getByLabel('Creature', { exact: true })).toHaveCount(0);
+  await expect(upNext).toContainText('Dragon 1');
+  await expect(upNext.getByLabel('Creature', { exact: true })).toHaveCount(0);
+  await select(page, 'Goblin 1');
+  await page.getByRole('button', { name: /^Real/ }).click();
   await expect(main.getByLabel('Creature', { exact: true })).toHaveText('Goblin');
-  await expect(upNext.getByLabel('Creature', { exact: true })).toHaveText('Dragon');
+  await expect(row(page, 'Goblin 1')).toContainText('creature shown');
 
   // Disguise the dragon: typing the fake alone changes nothing until Fake is on.
   await select(page, 'Dragon 1');
+  await expect(page.getByRole('button', { name: 'Hidden', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('textbox', { name: 'Fake creature for Dragon 1' }).fill('Orc');
-  await expect(upNext.getByLabel('Creature', { exact: true })).toHaveText('Dragon');
+  await expect(upNext.getByLabel('Creature', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Fake', exact: true }).click();
   await expect(upNext.getByLabel('Creature', { exact: true })).toHaveText('Orc');
   await expect(row(page, 'Dragon 1')).toContainText('shown as Orc');
@@ -40,6 +47,8 @@ test('player view: kind of creature under the name, real or the DM’s fake', as
   await expect(table.locator('main').getByLabel('Creature', { exact: true })).toHaveText('Orc');
   await page.getByRole('button', { name: /^Real/ }).click();
   await expect(table.locator('main').getByLabel('Creature', { exact: true })).toHaveText('Dragon');
+  await page.getByRole('button', { name: 'Hidden', exact: true }).click();
+  await expect(table.locator('main').getByLabel('Creature', { exact: true })).toHaveCount(0);
 
   // Players never show one.
   await next(page);

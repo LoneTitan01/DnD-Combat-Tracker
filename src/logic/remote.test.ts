@@ -12,7 +12,7 @@ import { makeCombat, makeCombatant } from './testUtils';
 
 const party = () => {
   const aria = makeCombatant({ id: 'aria', kind: 'player', tokenName: 'Aria', initiative: 18, dexScore: undefined, notes: 'secret' });
-  const gob = makeCombatant({ id: 'gob', tokenName: 'Goblin 1', initiative: 12, creatureName: 'Goblin', notes: 'flees at 3 HP' });
+  const gob = makeCombatant({ id: 'gob', tokenName: 'Goblin 1', initiative: 12, creatureName: 'Goblin', creatureShown: 'real', notes: 'flees at 3 HP' });
   const dead = makeCombatant({ id: 'dead', tokenName: 'Goblin 2', initiative: 10, isDead: true });
   const brom = makeCombatant({ id: 'brom', kind: 'player', tokenName: 'Brom', initiative: 5, dexScore: undefined });
   return makeCombat([aria, gob, dead, brom], { id: 'cb', name: 'Ambush', turnIndex: 1, round: 2 });

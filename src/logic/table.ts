@@ -1,4 +1,4 @@
-import type { Combat, Combatant, CombatantKind, CreatureTemplate, ID } from '../models';
+import type { Combat, Combatant, CombatantKind, CreatureShown, CreatureTemplate, ID } from '../models';
 
 /**
  * What the player-facing page shows. Deliberately minimal: names, kinds of creature and round only,
@@ -27,12 +27,20 @@ export interface TableGroup {
 /** Looks up a stat block's name, for combatants added before it was snapshotted. */
 export type TemplateNames = ReadonlyMap<ID, Pick<CreatureTemplate, 'name'>>;
 
-/** The kind of creature the players see: the fake one while the DM has it on, otherwise the real one. */
+/** What the DM has the player view show as this creature's kind. Hidden unless they chose otherwise. */
+export function creatureShownOf(c: Combatant): CreatureShown {
+  return c.creatureShown ?? (c.showFakeName ? 'fake' : 'hidden');
+}
+
+/** The kind of creature the players see: nothing by default, or the real or fake one once the DM picks it. */
 export function shownCreature(c: Combatant, templates?: TemplateNames): string | null {
   if (c.kind !== 'creature') return null;
-  const t = c.showFakeName
-    ? c.fakeName
-    : (c.creatureName ?? (c.templateId ? templates?.get(c.templateId)?.name : undefined));
+  const mode = creatureShownOf(c);
+  if (mode === 'hidden') return null;
+  const t =
+    mode === 'fake'
+      ? c.fakeName
+      : (c.creatureName ?? (c.templateId ? templates?.get(c.templateId)?.name : undefined));
   return t?.trim() || null;
 }
 

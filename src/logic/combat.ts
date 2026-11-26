@@ -1,8 +1,9 @@
-import type { AbilityState, Combat, Combatant, DamageModifier, DamageType, ID, LogEntry, Recharge } from '../models';
+import type { AbilityState, Combat, Combatant, CreatureShown, DamageModifier, DamageType, ID, LogEntry, Recharge } from '../models';
 import { applyDamage, grantTempHP, heal, revive } from './damage';
 import { defaultRng, rollDie, type Rng } from './dice';
 import { newId } from './ids';
 import { slotLevelLabel } from './spells';
+import { creatureShownOf } from './table';
 
 // ---------- helpers ----------
 
@@ -293,20 +294,23 @@ export function setCombatantNotes(combat: Combat, id: ID, notes: string): Combat
   });
 }
 
-/** Sets what kind of creature the player view shows: the real one (its stat block's name) or a fake. Not logged. */
+/** Sets what kind of creature the player view shows: nothing, the real one (its stat block's name) or a fake. Not logged. */
 export function setCreatureDisplay(
   combat: Combat,
   id: ID,
-  change: { fakeName?: string; showFakeName?: boolean },
+  change: { fakeName?: string; creatureShown?: CreatureShown },
 ): Combat {
   const c = findCombatant(combat, id);
   if (!c) return combat;
   if (
     (change.fakeName === undefined || change.fakeName === (c.fakeName ?? '')) &&
-    (change.showFakeName === undefined || change.showFakeName === !!c.showFakeName)
+    (change.creatureShown === undefined || change.creatureShown === creatureShownOf(c))
   )
     return combat;
-  return updateCombatant(combat, id, (x) => ({ ...x, ...change }));
+  return updateCombatant(combat, id, (x) => {
+    const { showFakeName: _legacy, ...rest } = x;
+    return { ...rest, creatureShown: creatureShownOf(x), ...change };
+  });
 }
 
 /** Marks a creature as fighting on the players' side (or not). Not logged. */
