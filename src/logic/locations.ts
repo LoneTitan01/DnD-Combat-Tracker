@@ -1,4 +1,4 @@
-import type { ID, Location, Npc, ShopItem } from '../models';
+import type { ID, Item, Location, Npc, ShopItem } from '../models';
 import { newId } from './ids';
 
 export function blankLocation(campaignId: ID, parentId?: ID): Location {
@@ -110,11 +110,12 @@ export function locationTree(list: readonly Location[]): TreeRow[] {
   return rows;
 }
 
-export function blankShopItem(): ShopItem {
-  return { id: newId(), name: '', cost: '', description: '' };
+/** A shop row for an item from the item list, at the item's list price. */
+export function shopItemFor(item: Pick<Item, 'id' | 'name' | 'cost'>): ShopItem {
+  return { id: newId(), itemId: item.id, name: item.name, cost: item.cost, description: '' };
 }
 
-const blankItem = (i: ShopItem) => !i.name.trim() && !i.cost.trim() && !i.description.trim();
+const blankItem = (i: ShopItem) => !i.itemId && !i.name.trim() && !i.cost.trim() && !i.description.trim();
 
 /** Name, notes, shop item and NPC search, ignoring case. `npcs` are the campaign's NPCs, matched to where they live. */
 export function filterLocations(
@@ -142,7 +143,7 @@ export function validateLocation(loc: Location, list: readonly Location[]): stri
   if (loc.parentId && (loc.parentId === loc.id || descendantIds(list, loc.id).has(loc.parentId))) {
     errors.push("A location can't be inside a place that's inside it.");
   }
-  if ((loc.shop ?? []).some((i) => !blankItem(i) && !i.name.trim())) errors.push('Give every shop item a name.');
+  if ((loc.shop ?? []).some((i) => !i.itemId && !blankItem(i) && !i.name.trim())) errors.push('Give every shop item a name.');
   return errors;
 }
 

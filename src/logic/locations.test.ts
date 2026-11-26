@@ -9,6 +9,7 @@ import {
   parentOptions,
   planLocationDelete,
   planLocationSave,
+  shopItemFor,
   siblingsOf,
   validateLocation,
 } from './locations';
@@ -101,6 +102,13 @@ describe('shop items', () => {
 
   it('leaves no shop when nothing is for sale', () => {
     expect(cleanLocation({ ...shop, shop: [item('')] })).not.toHaveProperty('shop');
+  });
+
+  it('starts items from the item list at their list price, and keeps them on save', () => {
+    const row = shopItemFor({ id: 'sword', name: 'Longsword', cost: '15 gp' });
+    expect(row).toMatchObject({ itemId: 'sword', name: 'Longsword', cost: '15 gp', description: '' });
+    // A listed item stays even with its price cleared: it's for sale, price to be haggled.
+    expect(cleanLocation({ ...shop, shop: [{ ...row, name: '', cost: '' }] }).shop).toHaveLength(1);
   });
 
   it('needs a name on every filled-in item', () => {

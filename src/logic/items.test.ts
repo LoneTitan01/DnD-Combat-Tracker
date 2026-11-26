@@ -7,6 +7,7 @@ import {
   costInCopper,
   effectUses,
   filterItems,
+  findItemByName,
   itemSubtitle,
   itemSummary,
   normalizeItem,
@@ -35,6 +36,15 @@ describe('cost and weight', () => {
     expect(weightInPounds('1,000 lbs')).toBe(1000);
     expect(weightInPounds('4')).toBe(4);
     expect(weightInPounds('—')).toBeUndefined();
+  });
+});
+
+describe('findItemByName', () => {
+  it('ignores case and spaces, and finds nothing for a blank name', () => {
+    const list = [item('Longsword'), item('Rope, hempen (50 feet)')];
+    expect(findItemByName(list, ' longSWORD ')?.id).toBe('Longsword');
+    expect(findItemByName(list, 'Long')).toBeUndefined();
+    expect(findItemByName(list, ' ')).toBeUndefined();
   });
 });
 

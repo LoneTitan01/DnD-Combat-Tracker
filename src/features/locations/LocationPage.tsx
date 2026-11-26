@@ -1,9 +1,10 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Button, Card } from '../../components/ui';
-import { deleteLocation } from '../../db';
-import { ancestorsOf, childrenOf, npcsAt, siblingsOf } from '../../logic';
-import type { Location, ShopItem } from '../../models';
+import { db, deleteLocation } from '../../db';
+import { ancestorsOf, childrenOf, itemSubtitle, itemSummary, npcsAt, siblingsOf } from '../../logic';
+import type { Item, Location, ShopItem } from '../../models';
 import { LocationLink, NpcLink, useLocations, useNpcs } from './shared';
 
 function Section({ title, empty, children }: { title: string; empty?: string; children?: ReactNode }) {
@@ -19,7 +20,26 @@ function LinkList({ items }: { items: ReactNode[] }) {
   return <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm">{items}</ul>;
 }
 
+/** A shop row's item: a link to it in the item list, with its type, or plain text for rows not tied to one. */
+function ShopItemName({ row, item }: { row: ShopItem; item: Item | undefined }) {
+  if (!item) return <span className="font-medium">{row.name}</span>;
+  const details = [itemSubtitle(item), itemSummary(item)].filter(Boolean).join(', ');
+  return (
+    <>
+      <Link to={`/items/${item.id}`} className="font-medium text-amber-400 hover:underline">
+        {item.name}
+      </Link>
+      <span className="block text-xs text-stone-500">{details}</span>
+    </>
+  );
+}
+
 function ShopTable({ items }: { items: ShopItem[] }) {
+  const ids = items.map((i) => i.itemId).filter((i): i is string => !!i);
+  const listed = useLiveQuery(
+    async () => new Map((await db.items.bulkGet(ids)).filter((i): i is Item => !!i).map((i) => [i.id, i])),
+    [ids.join()],
+  );
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
@@ -33,7 +53,9 @@ function ShopTable({ items }: { items: ShopItem[] }) {
         <tbody className="align-top text-stone-200">
           {items.map((i) => (
             <tr key={i.id} className="border-t border-stone-800">
-              <td className="py-1.5 pr-3 font-medium">{i.name}</td>
+              <td className="py-1.5 pr-3">
+                <ShopItemName row={i} item={i.itemId ? listed?.get(i.itemId) : undefined} />
+              </td>
               <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums text-amber-200">{i.cost}</td>
               <td className="py-1.5 text-stone-300">{i.description}</td>
             </tr>

@@ -79,31 +79,58 @@ test('locations: nest places, link siblings and NPCs, navigate, delete', async (
   ]);
 });
 
-test('locations: an optional shop table with items, costs and descriptions', async ({ page }) => {
+async function newItem(page: Page, name: string, category: string, cost: string) {
+  await page.goto('#/items/new');
+  await page.getByLabel('Name', { exact: true }).fill(name);
+  await page.getByRole('combobox', { name: 'Category' }).selectOption(category);
+  await page.getByRole('textbox', { name: 'Cost' }).fill(cost);
+  await page.getByRole('button', { name: 'Save item' }).click();
+  await expect(page).toHaveURL(/#\/items\/[^/]+$/);
+}
+
+test('locations: an optional shop table with items from the item list', async ({ page }) => {
+  // With nothing in the item list, the shop points there.
+  await page.goto('#/locations/new');
+  await expect(page.getByRole('region', { name: 'Shop' })).toContainText('the item list, which is empty');
+
+  await newItem(page, 'Longsword', 'weapon', '15 gp');
+  await newItem(page, 'Rope (50 ft)', 'gear', '1 gp');
+
   await page.goto('#/locations/new');
   await page.getByRole('textbox', { name: 'Name' }).fill('The Gilded Anvil');
   await expect(page.getByRole('list', { name: 'Shop items' })).toHaveCount(0);
 
-  // A blank row left at the end is dropped on save.
-  await page.getByRole('button', { name: 'Add a shop' }).click();
-  await page.getByRole('textbox', { name: 'Item 1 name' }).fill('Longsword');
-  await page.getByRole('textbox', { name: 'Item 1 cost' }).fill('15 gp');
+  // Items are picked by name and start at their list price, which the shop can change.
+  await page.getByRole('combobox', { name: 'Add a shop' }).fill('longsword');
+  await page.getByRole('button', { name: 'Add item' }).click();
+  await expect(page.getByRole('textbox', { name: 'Item 1 cost' })).toHaveValue('15 gp');
+  await page.getByRole('textbox', { name: 'Item 1 cost' }).fill('20 gp');
   await page.getByRole('textbox', { name: 'Item 1 description' }).fill('Dwarven steel, slightly used');
-  await page.getByRole('button', { name: 'Add item' }).click();
-  await page.getByRole('textbox', { name: 'Item 2 cost' }).fill('1 gp');
-  await page.getByRole('button', { name: 'Save location' }).click();
-  await expect(page.getByText('Give every shop item a name.')).toBeVisible();
-  await page.getByRole('textbox', { name: 'Item 2 name' }).fill('Rope (50 ft)');
-  await page.getByRole('button', { name: 'Add item' }).click();
+
+  // Names that aren't in the item list can't be added, nor can an item twice.
+  const picker = page.getByRole('combobox', { name: 'Add an item' });
+  await picker.fill('Bag of Holding');
+  await expect(page.getByText('No item called “Bag of Holding” in the item list.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add item' })).toBeDisabled();
+  await picker.fill('Longsword');
+  await expect(page.getByText('Longsword is already for sale here.')).toBeVisible();
+  await picker.fill('Rope (50 ft)');
+  await picker.press('Enter');
+  await expect(page.getByRole('textbox', { name: 'Item 2 cost' })).toHaveValue('1 gp');
   await page.getByRole('button', { name: 'Save location' }).click();
   await expect(page.getByRole('heading', { name: 'The Gilded Anvil', level: 1 })).toBeVisible();
 
   const shop = page.getByRole('region', { name: 'Shop' });
   await expect(shop.getByRole('row')).toHaveText([
     /Item\s*Cost\s*Description/,
-    /Longsword\s*15 gp\s*Dwarven steel, slightly used/,
-    /Rope \(50 ft\)\s*1 gp/,
+    /Longsword\s*Simple melee weapon, 1d6 slashing\s*20 gp\s*Dwarven steel, slightly used/,
+    /Rope \(50 ft\)\s*Adventuring gear\s*1 gp/,
   ]);
+
+  // Item names link to the item list.
+  await shop.getByRole('link', { name: 'Longsword' }).click();
+  await expect(page).toHaveURL(/#\/items\/[^/]+$/);
+  await page.goBack();
 
   // Search finds the place by what it sells.
   await page.goto('#/locations');

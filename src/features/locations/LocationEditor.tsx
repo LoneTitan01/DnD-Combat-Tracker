@@ -1,9 +1,21 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { Button, Card, Field, PageHeader, Select, TextArea, TextInput } from '../../components/ui';
 import { db, saveLocation, setLocationNpcs } from '../../db';
-import { blankLocation, blankShopItem, childOptions, childrenOf, findNpcByName, parentOptions, placeLabel, validateLocation } from '../../logic';
-import type { ID, Location, Npc, ShopItem } from '../../models';
+import {
+  blankLocation,
+  childOptions,
+  childrenOf,
+  findItemByName,
+  findNpcByName,
+  itemSubtitle,
+  parentOptions,
+  placeLabel,
+  shopItemFor,
+  validateLocation,
+} from '../../logic';
+import type { ID, Item, Location, Npc, ShopItem } from '../../models';
 import { useLocations, useNpcs } from './shared';
 
 interface Draft {
@@ -151,10 +163,23 @@ function NpcList({
   );
 }
 
-/** The shop table: one row per item for sale, in the order they're listed. */
-function ShopEditor({ items, onChange }: { items: ShopItem[]; onChange: (items: ShopItem[]) => void }) {
+const ITEM_NAMES = 'shop-item-names';
+
+/**
+ * The shop table: one row per item for sale, in the order they're listed. Items are picked from the
+ * item list and start at its price, which each shop can change.
+ */
+function ShopEditor({ items, catalog, onChange }: { items: ShopItem[]; catalog: Item[]; onChange: (items: ShopItem[]) => void }) {
+  const [name, setName] = useState('');
   const set = (id: ID, patch: Partial<ShopItem>) => onChange(items.map((i) => (i.id === id ? { ...i, ...patch } : i)));
-  const add = () => onChange([...items, blankShopItem()]);
+  const byId = new Map(catalog.map((i) => [i.id, i]));
+  const stocked = new Set(items.map((i) => i.itemId));
+  const match = findItemByName(catalog, name);
+  const add = () => {
+    if (!match) return;
+    if (!stocked.has(match.id)) onChange([...items, shopItemFor(match)]);
+    setName('');
+  };
   return (
     <section aria-label="Shop" className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-2">
@@ -164,19 +189,27 @@ function ShopEditor({ items, onChange }: { items: ShopItem[]; onChange: (items: 
       </div>
       {items.length > 0 && (
         <ol aria-label="Shop items" className="flex flex-col gap-3">
-          {items.map((item, n) => (
+          {items.map((item, n) => {
+            const listed = item.itemId ? byId.get(item.itemId) : undefined;
+            return (
             <li key={item.id} className="flex flex-wrap items-start gap-2 border-b border-stone-800 pb-3 last:border-0 last:pb-0">
-              <TextInput
-                aria-label={`Item ${n + 1} name`}
-                placeholder="Item"
-                value={item.name}
-                autoFocus={n === items.length - 1 && !item.name && !item.cost && !item.description}
-                className="min-w-40 flex-[2]"
-                onChange={(e) => set(item.id, { name: e.target.value })}
-              />
+              {item.itemId ? (
+                <div aria-label={`Item ${n + 1}`} className="min-w-40 flex-[2] py-1.5 text-sm">
+                  <span className="font-medium text-stone-100">{listed?.name ?? item.name}</span>
+                  <span className="ml-2 text-xs text-stone-500">{listed ? itemSubtitle(listed) : 'no longer in the item list'}</span>
+                </div>
+              ) : (
+                <TextInput
+                  aria-label={`Item ${n + 1} name`}
+                  placeholder="Item"
+                  value={item.name}
+                  className="min-w-40 flex-[2]"
+                  onChange={(e) => set(item.id, { name: e.target.value })}
+                />
+              )}
               <TextInput
                 aria-label={`Item ${n + 1} cost`}
-                placeholder="Cost"
+                placeholder={listed?.cost || 'Cost'}
                 value={item.cost}
                 className="w-24 min-w-0 flex-1 sm:flex-none"
                 onChange={(e) => set(item.id, { cost: e.target.value })}
@@ -191,18 +224,56 @@ function ShopEditor({ items, onChange }: { items: ShopItem[]; onChange: (items: 
               </Button>
               <TextInput
                 aria-label={`Item ${n + 1} description`}
-                placeholder="Description"
+                placeholder={item.itemId ? 'Note (optional), e.g. "dwarven steel, slightly used"' : 'Description'}
                 value={item.description}
                 className="w-full"
                 onChange={(e) => set(item.id, { description: e.target.value })}
               />
             </li>
-          ))}
+            );
+          })}
         </ol>
       )}
-      <div>
-        <Button onClick={add}>{items.length ? 'Add item' : 'Add a shop'}</Button>
-      </div>
+      {catalog.length === 0 ? (
+        <p className="text-sm text-stone-500">
+          Shops sell items from the item list, which is empty.{' '}
+          <Link to="/items" className="text-amber-400 hover:underline">
+            Add items
+          </Link>{' '}
+          first.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1">
+          <datalist id={ITEM_NAMES}>
+            {catalog
+              .filter((i) => !stocked.has(i.id))
+              .map((i) => (
+                <option key={i.id} value={i.name} />
+              ))}
+          </datalist>
+          <div className="flex items-end gap-2">
+            <Field label={items.length ? 'Add an item' : 'Add a shop'} hint="pick from the item list" className="flex-1">
+              <TextInput
+                value={name}
+                list={ITEM_NAMES}
+                placeholder="Longsword"
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    add();
+                  }
+                }}
+              />
+            </Field>
+            <Button onClick={add} disabled={!match}>
+              Add item
+            </Button>
+          </div>
+          {name.trim() && !match && <p className="text-xs text-stone-500">No item called “{name.trim()}” in the item list.</p>}
+          {match && stocked.has(match.id) && <p className="text-xs text-stone-500">{match.name} is already for sale here.</p>}
+        </div>
+      )}
     </section>
   );
 }
@@ -213,6 +284,7 @@ export function LocationEditor() {
   const navigate = useNavigate();
   const { locations, campaignId } = useLocations();
   const npcs = useNpcs();
+  const catalog = useLiveQuery(() => db.items.orderBy('name').toArray());
   const [draft, setDraft] = useState<Draft | null>(null);
   const [original, setOriginal] = useState('');
   const [notFound, setNotFound] = useState(false);
@@ -257,7 +329,7 @@ export function LocationEditor() {
   }, [draft, others]);
 
   if (notFound) return <p className="text-stone-400">That location doesn't exist.</p>;
-  if (!draft || !locations || !npcs) return null;
+  if (!draft || !locations || !npcs || !catalog) return null;
 
   const loc = draft.location;
   const set = (patch: Partial<Location>) => setDraft({ ...draft, location: { ...loc, ...patch } });
@@ -278,7 +350,10 @@ export function LocationEditor() {
     setShowErrors(true);
     if (errors.length) return;
     setSaving(true);
-    await saveLocation(loc, draft.childIds);
+    // Keep each listed item's current name, in case it was renamed in the item list.
+    const names = new Map(catalog.map((i) => [i.id, i.name]));
+    const shop = loc.shop?.map((s) => (s.itemId && names.has(s.itemId) ? { ...s, name: names.get(s.itemId)! } : s));
+    await saveLocation(shop ? { ...loc, shop } : loc, draft.childIds);
     await setLocationNpcs(loc.id, loc.campaignId, draft.npcIds, draft.newNpcs);
     setOriginal(JSON.stringify(draft));
     navigate(`/locations/${loc.id}`, { replace: true });
@@ -346,7 +421,7 @@ export function LocationEditor() {
         </Card>
 
         <Card>
-          <ShopEditor items={loc.shop ?? []} onChange={(shop) => set({ shop })} />
+          <ShopEditor items={loc.shop ?? []} catalog={catalog} onChange={(shop) => set({ shop })} />
         </Card>
 
         <div className="fixed bottom-0 left-[var(--nav-width,0px)] right-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">
