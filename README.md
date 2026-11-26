@@ -21,7 +21,8 @@ A local-first web app for preparing D&D 5e encounters and running them at the ta
 ### Items
 - An item list shared by all campaigns, in four categories: **Weapons**, **Armor**, **Tools** and **Adventuring Gear**, each with its own tab.
 - Every item has a cost, weight and description. Weapons add class, melee or ranged, damage and properties; armor adds type, AC, Strength requirement and Stealth disadvantage; tools add their kind.
-- Sort by name, type, cost (any coin) or weight; import and export JSON (this app's format or public 5e equipment data).
+- **Magic items:** any item can be magical, with a rarity and attunement (optionally "by a wizard"). Weapons and armor can carry an enchantment bonus (+N to attack and damage rolls, or to AC), shown in their damage and AC. Magic items list their effects: spells they cast (linked from the spell list, so the spell shows on hover), actions the wielder can take, and passive effects, each with optional uses and a recharge ("3/dawn").
+- Sort by name, type, rarity, cost (any coin) or weight, and filter to magic items only; import and export JSON (this app's format, or public 5e equipment and magic item data, reading rarity, attunement and a bonus in the name like "+1 Longsword").
 
 ### Party
 - A roster of players with level and initiative bonus, plus warnings about duplicate names.
@@ -108,7 +109,7 @@ Sync needs a Google OAuth client ID. It isn't a secret, because it only works fr
   - `staging.ts`: encounter → staged combat, token names, reinforcements, joining players, start combat.
   - `table.ts`: the player-facing view (order, current turn, Up Next) with nothing secret in it.
   - `creature.ts`, `encounter.ts`, `party.ts`: stat block editing, validation and import; `parseText.ts` reads pasted stat blocks and spells; encounter building and tags; the party roster.
-  - `items.ts`: item categories and details, cost and weight sorting, and item import.
+  - `items.ts`: item categories and details, magic items (rarity, bonus, effects), cost and weight sorting, and item import.
   - `xp.ts`, `dice.ts`: CR → XP, encounter multiplier and difficulty, dice parsing and rolling, HP from hit dice.
 - `src/db/`: Dexie tables (creatures, players, encounters, combats, deletions), schema migrations, JSON backup, and the sync merge into local data.
 - `src/sync/`: Google sync. `google.ts` handles Google sign-in and the Drive file, `engine.ts` does one download → merge → upload round, and `manager.ts` handles when to sync and the status shown in the UI. The merge rules are in `src/logic/sync.ts`.

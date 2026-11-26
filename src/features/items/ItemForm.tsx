@@ -17,6 +17,7 @@ import {
   type WeaponDetails,
   type WeaponRange,
 } from '../../models';
+import { MagicFields } from './MagicFields';
 
 function WeaponFields({ value: w, onChange }: { value: WeaponDetails; onChange: (w: WeaponDetails) => void }) {
   const set = (patch: Partial<WeaponDetails>) => onChange({ ...w, ...patch });
@@ -111,6 +112,7 @@ export function ItemForm({
 }) {
   const set = (patch: Partial<Item>) => onChange({ ...i, ...patch });
   return (
+    <>
     <Card className="flex flex-col gap-3">
       <Field label="Name">
         <TextInput value={i.name} onChange={(e) => set({ name: e.target.value })} placeholder="Longsword" autoFocus={autoFocusName} />
@@ -149,5 +151,7 @@ export function ItemForm({
         <TextArea value={i.description} onChange={(e) => set({ description: e.target.value })} rows={6} />
       </Field>
     </Card>
+    <MagicFields value={i} onChange={onChange} />
+    </>
   );
 }

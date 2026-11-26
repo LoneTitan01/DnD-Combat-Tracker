@@ -2,12 +2,19 @@ import {
   ARMOR_TYPES,
   DAMAGE_TYPES,
   ITEM_CATEGORIES,
+  ITEM_RARITIES,
+  MAGIC_EFFECT_KINDS,
   TOOL_TYPES,
   type ArmorDetails,
   type ArmorType,
   type DamageType,
+  type ID,
   type Item,
   type ItemCategory,
+  type ItemRarity,
+  type MagicDetails,
+  type MagicEffect,
+  type MagicEffectKind,
   type ToolDetails,
   type ToolType,
   type WeaponDetails,
@@ -50,8 +57,64 @@ export const toolOf = (i: Pick<Item, 'tool'>): ToolDetails => ({ ...DEFAULT_TOOL
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** "Martial melee weapon", "Medium armor", "Gaming set", "Adventuring gear": printed under the name. */
-export function itemSubtitle(i: Item): string {
+// ---------- magic ----------
+
+export const MAGIC_EFFECT_LABELS: Record<MagicEffectKind, string> = {
+  spell: 'Spell',
+  action: 'Action',
+  passive: 'Passive',
+};
+
+export const DEFAULT_MAGIC: MagicDetails = { rarity: 'uncommon', attunement: false, attunementBy: '', bonus: 0, effects: [] };
+
+export const MAX_MAGIC_BONUS = 10;
+
+export const magicOf = (i: Pick<Item, 'magic'>): MagicDetails | undefined =>
+  i.magic ? { ...DEFAULT_MAGIC, ...i.magic, effects: i.magic.effects ?? [] } : undefined;
+
+/** The +N enchantment, for the categories it applies to (weapons and armor); 0 otherwise. */
+export function magicBonus(i: Pick<Item, 'magic' | 'category'>): number {
+  if (i.category !== 'weapon' && i.category !== 'armor') return 0;
+  return magicOf(i)?.bonus ?? 0;
+}
+
+export function blankMagicEffect(kind: MagicEffectKind = 'action'): MagicEffect {
+  return { id: newId(), kind, name: '', description: '', uses: 0, recharge: '' };
+}
+
+/** Makes an item magical (with defaults) or mundane. Turning magic off drops its magic details. */
+export function withMagic(i: Item, on: boolean): Item {
+  if (on) return { ...i, magic: magicOf(i) ?? { ...DEFAULT_MAGIC } };
+  const { magic: _magic, ...rest } = i;
+  return rest;
+}
+
+/** "rare (requires attunement by a wizard)": the magic part of the subtitle. */
+export function rarityLine(m: MagicDetails): string {
+  if (!m.attunement) return m.rarity;
+  const by = m.attunementBy.trim();
+  return `${m.rarity} (requires attunement${by ? ` ${by}` : ''})`;
+}
+
+/** "3 charges, recharges at dawn", "1/long rest", or '' for unlimited. */
+export function effectUses(e: Pick<MagicEffect, 'kind' | 'uses' | 'recharge'>): string {
+  if (e.kind === 'passive' || e.uses <= 0) return '';
+  const r = e.recharge.trim();
+  if (!r) return `${e.uses} ${e.uses === 1 ? 'use' : 'uses'}`;
+  return `${e.uses}/${r}`;
+}
+
+/** An effect's heading: its name, or for a spell without one, the linked spell's name. */
+export function effectName(e: MagicEffect, spellName?: (id: ID) => string | undefined): string {
+  return e.name.trim() || (e.spellId ? (spellName?.(e.spellId) ?? '') : '');
+}
+
+// ---------- display ----------
+
+const signed = (n: number) => (n < 0 ? `−${-n}` : `+${n}`);
+
+/** "Martial melee weapon", "Medium armor", "Gaming set", "Adventuring gear". */
+export function itemType(i: Item): string {
   switch (i.category) {
     case 'weapon': {
       const w = weaponOf(i);
@@ -66,17 +129,37 @@ export function itemSubtitle(i: Item): string {
   }
 }
 
-/** "1d8 slashing", or '' when the weapon deals no damage. */
-export function weaponDamage(w: WeaponDetails): string {
-  return w.damage.trim() ? `${w.damage.trim()} ${w.damageType}` : '';
+/** The line under an item's name: "Martial melee weapon", or "Martial melee weapon, rare (requires attunement)". */
+export function itemSubtitle(i: Item): string {
+  const m = magicOf(i);
+  return m ? `${itemType(i)}, ${rarityLine(m)}` : itemType(i);
 }
 
-/** The details the list shows for an item: damage for weapons, AC for armor. */
+/** "1d8 slashing" ("1d8 + 1 slashing" with a +1 bonus), or '' when the weapon deals no damage. */
+export function weaponDamage(w: WeaponDetails, bonus = 0): string {
+  const dice = w.damage.trim();
+  if (!dice) return '';
+  return bonus ? `${dice} ${bonus < 0 ? '−' : '+'} ${Math.abs(bonus)} ${w.damageType}` : `${dice} ${w.damageType}`;
+}
+
+/** "+1 to attack and damage rolls" / "+2 to AC", or '' without a bonus. */
+export function bonusLine(i: Item): string {
+  const b = magicBonus(i);
+  if (!b) return '';
+  return i.category === 'weapon' ? `${signed(b)} to attack and damage rolls` : `${signed(b)} to AC`;
+}
+
+/** The details the list shows for an item: damage for weapons, AC for armor, with any magic bonus. */
 export function itemSummary(i: Item): string {
-  if (i.category === 'weapon') return weaponDamage(weaponOf(i));
+  const b = magicBonus(i);
+  if (i.category === 'weapon') {
+    const dmg = weaponDamage(weaponOf(i), b);
+    return b ? [`${signed(b)} to hit`, dmg].filter(Boolean).join(', ') : dmg;
+  }
   if (i.category === 'armor') {
     const ac = armorOf(i).ac.trim();
-    return ac ? `AC ${ac}` : '';
+    const parts = [ac ? `AC ${ac}` : '', b ? `${signed(b)} AC` : ''].filter(Boolean);
+    return parts.join(', ');
   }
   return '';
 }
@@ -99,6 +182,16 @@ export function validateItem(i: Item): string[] {
   if (i.category === 'armor') {
     const s = armorOf(i).strength;
     if (!Number.isInteger(s) || s < 0 || s > 30) errors.push('Strength requirement must be between 0 and 30.');
+  }
+  const m = magicOf(i);
+  if (m) {
+    if (!Number.isInteger(m.bonus) || m.bonus < 0 || m.bonus > MAX_MAGIC_BONUS)
+      errors.push(`Magic bonus must be between 0 and ${MAX_MAGIC_BONUS}.`);
+    if (m.effects.some((e) => e.kind === 'spell' && !e.spellId && !e.name.trim()))
+      errors.push('Every spell effect needs a spell from the spell list or a name.');
+    if (m.effects.some((e) => e.kind !== 'spell' && !e.name.trim())) errors.push('Every action and passive needs a name.');
+    if (m.effects.some((e) => !Number.isInteger(e.uses) || e.uses < 0 || e.uses > 99))
+      errors.push('Uses must be between 0 and 99.');
   }
   return errors;
 }
@@ -129,13 +222,15 @@ export function weightInPounds(weight: string): number | undefined {
 
 // ---------- search & filter ----------
 
-export const ITEM_SORTS = ['name', 'category', 'cost', 'weight'] as const;
+export const ITEM_SORTS = ['name', 'category', 'rarity', 'cost', 'weight'] as const;
 export type ItemSort = (typeof ITEM_SORTS)[number];
 
 export interface ItemFilter {
   query?: string;
   /** '' = every category. */
   category?: string;
+  /** Only magic items. */
+  magic?: boolean;
   /** Defaults to 'name'. */
   sort?: ItemSort;
   /** Reverse the sort column. Items whose cost or weight can't be read stay last either way. */
@@ -146,7 +241,9 @@ export function filterItems(list: readonly Item[], f: ItemFilter = {}): Item[] {
   const q = f.query?.trim().toLowerCase() ?? '';
   const category = f.category ?? '';
   return list
-    .filter((i) => (!q || i.name.toLowerCase().includes(q)) && (!category || i.category === category))
+    .filter(
+      (i) => (!q || i.name.toLowerCase().includes(q)) && (!category || i.category === category) && (!f.magic || !!i.magic),
+    )
     .sort(itemComparator(f.sort, f.desc));
 }
 
@@ -166,6 +263,8 @@ function itemComparator(sort: ItemSort = 'name', desc = false): (a: Item, b: Ite
   switch (sort) {
     case 'category':
       return (a, b) => dir * (ITEM_CATEGORIES.indexOf(a.category) - ITEM_CATEGORIES.indexOf(b.category)) || byName(a, b);
+    case 'rarity':
+      return byNumber((i) => (i.magic ? ITEM_RARITIES.indexOf(magicOf(i)!.rarity) : undefined), dir, byName);
     case 'cost':
       return byNumber((i) => costInCopper(i.cost), dir, byName);
     case 'weight':
@@ -276,10 +375,59 @@ function parseTool(o: Record<string, unknown>): ToolDetails {
   return { type };
 }
 
+function parseEffect(raw: unknown): MagicEffect | null {
+  const o = obj(raw);
+  const kindText = text(o.kind).toLowerCase();
+  const kind = (MAGIC_EFFECT_KINDS as readonly string[]).includes(kindText) ? (kindText as MagicEffectKind) : 'action';
+  const name = text(o.name).trim();
+  const spellId = text(o.spellId).trim();
+  if (!name && !(kind === 'spell' && spellId)) return null;
+  const effect: MagicEffect = {
+    id: text(o.id) || newId(),
+    kind,
+    name,
+    description: text(o.description ?? o.desc).trim(),
+    uses: Math.min(99, Math.max(0, Math.floor(num(o.uses ?? o.charges) ?? 0))),
+    recharge: text(o.recharge).trim(),
+  };
+  if (kind === 'spell' && spellId) effect.spellId = spellId;
+  return effect;
+}
+
+/** "+1 Longsword", "Longsword, +2", "Shield +3": the bonus in a magic weapon's or armor's name. */
+const nameBonus = (name: string): number | undefined => {
+  const m = name.match(/(?:^|[\s,(])\+(\d+)\b/);
+  return m ? Math.min(MAX_MAGIC_BONUS, Number(m[1])) : undefined;
+};
+
+/**
+ * Magic details from this app's `magic` object, or from public 5e magic item data: a `rarity`
+ * (text or `{ name }`) and a first description line such as "Weapon (any sword), rare (requires
+ * attunement by a paladin)". A bonus is read from the name ("+1 Longsword") when none is given.
+ */
+function parseMagic(o: Record<string, unknown>, name: string, description: string): MagicDetails | undefined {
+  const m = obj(o.magic);
+  const own = !!o.magic && typeof o.magic === 'object';
+  const rarityText = (named(m.rarity) || named(o.rarity)).toLowerCase();
+  if (!own && !rarityText) return undefined;
+  const rarity =
+    ITEM_RARITIES.find((r) => rarityText === r) ??
+    // "Varies", "Rare (+2)" and similar: the first rarity named, longest first so "very rare" wins over "rare".
+    [...ITEM_RARITIES].sort((a, b) => b.length - a.length).find((r) => rarityText.includes(r)) ??
+    DEFAULT_MAGIC.rarity;
+  const attuneMatch = description.match(/requires attunement([^)\n]*)/i);
+  const attunement = 'attunement' in m ? yes(m.attunement) : yes(o.requires_attunement) || !!attuneMatch;
+  const attunementBy = text(m.attunementBy).trim() || (attuneMatch?.[1] ?? '').trim();
+  const bonus = Math.min(MAX_MAGIC_BONUS, Math.max(0, Math.floor(num(m.bonus) ?? nameBonus(name) ?? 0)));
+  const effects = (Array.isArray(m.effects) ? m.effects : []).map(parseEffect).filter((e): e is MagicEffect => e !== null);
+  return { rarity: rarity as ItemRarity, attunement, attunementBy: attunement ? attunementBy : '', bonus, effects };
+}
+
 /**
  * Turns an imported item into a valid Item. Understands this app's own format plus the common shape
- * of public 5e equipment data (categories as objects, cost as `{ quantity, unit }`, weight in pounds,
- * damage and armor class objects, "desc" paragraphs). Returns null when it has no name.
+ * of public 5e equipment and magic item data (categories as objects, cost as `{ quantity, unit }`,
+ * weight in pounds, damage and armor class objects, "desc" paragraphs, rarity). Returns null when it
+ * has no name.
  */
 export function normalizeItem(raw: unknown): Item | null {
   const o = obj(raw);
@@ -299,5 +447,7 @@ export function normalizeItem(raw: unknown): Item | null {
   if (item.category === 'weapon' || o.weapon) item.weapon = parseWeapon(o);
   if (item.category === 'armor' || o.armor) item.armor = parseArmor(o);
   if (item.category === 'tool' || o.tool) item.tool = parseTool(o);
+  const magic = parseMagic(o, name, item.description);
+  if (magic) item.magic = magic;
   return item;
 }

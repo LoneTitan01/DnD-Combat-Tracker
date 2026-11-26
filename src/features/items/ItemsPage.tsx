@@ -2,10 +2,10 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { nextSort, SortableHeader } from '../../components/SortableHeader';
-import { Button, Card, PageHeader, TextInput } from '../../components/ui';
+import { Button, Card, Chip, PageHeader, TextInput } from '../../components/ui';
 import { useUrlFilters } from '../../components/useUrlFilters';
 import { db } from '../../db';
-import { countByCategory, filterItems, ITEM_CATEGORY_LABELS, ITEM_SORTS, itemSubtitle, itemSummary, type ItemSort } from '../../logic';
+import { countByCategory, filterItems, ITEM_CATEGORY_LABELS, ITEM_SORTS, itemSummary, itemType, magicOf, type ItemSort } from '../../logic';
 import { ITEM_CATEGORIES, type ItemCategory } from '../../models';
 import { confirmAndDeleteItem, describeItemImport, downloadItems, importItemFile } from './actions';
 
@@ -38,7 +38,11 @@ export function ItemsPage() {
   const category = asCategory(params.get('category'));
   const sort = asSort(params.get('sort'));
   const desc = params.get('dir') === 'desc';
-  const shown = useMemo(() => filterItems(all ?? [], { query, category, sort, desc }), [all, query, category, sort, desc]);
+  const magic = params.get('magic') === '1';
+  const shown = useMemo(
+    () => filterItems(all ?? [], { query, category, magic, sort, desc }),
+    [all, query, category, magic, sort, desc],
+  );
   const counts = useMemo(() => countByCategory(all ?? []), [all]);
   const onSort = (column: ItemSort) => {
     const next = nextSort({ sort, desc }, column);
@@ -46,7 +50,7 @@ export function ItemsPage() {
     setFilter('dir', next.desc ? 'desc' : '');
   };
   const sortProps = { sort, desc, onSort };
-  const filtered = !!(query || category);
+  const filtered = !!(query || category || magic);
   const fileInput = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
 
@@ -115,6 +119,9 @@ export function ItemsPage() {
           onChange={(e) => setFilter('q', e.target.value)}
           className="min-w-48 flex-1"
         />
+        <Chip on={magic} onClick={() => setFilter('magic', magic ? '' : '1')}>
+          Magic items only
+        </Chip>
         {filtered && (
           <Button variant="ghost" onClick={() => clearFilters(['sort', 'dir'])}>
             Clear
@@ -130,7 +137,7 @@ export function ItemsPage() {
       )}
 
       {all && all.length > 0 && shown.length === 0 && (
-        <p className="text-sm text-stone-500">{query ? 'No items match this search.' : `No ${ITEM_CATEGORY_LABELS[category as ItemCategory].toLowerCase()} yet.`}</p>
+        <p className="text-sm text-stone-500">{query || magic ? 'No items match these filters.' : `No ${ITEM_CATEGORY_LABELS[category as ItemCategory].toLowerCase()} yet.`}</p>
       )}
 
       {shown.length > 0 && (
@@ -140,6 +147,7 @@ export function ItemsPage() {
               <tr className="border-b border-stone-800">
                 <SortableHeader column="name" label="Name" className="px-4" {...sortProps} />
                 <SortableHeader column="category" label="Type" className="px-2" {...sortProps} />
+                <SortableHeader column="rarity" label="Rarity" className="px-2" {...sortProps} />
                 <th className="px-2 py-2 font-medium">Details</th>
                 <SortableHeader column="cost" label="Cost" className="px-2" {...sortProps} />
                 <SortableHeader column="weight" label="Weight" className="px-2" {...sortProps} />
@@ -154,7 +162,11 @@ export function ItemsPage() {
                       {i.name}
                     </Link>
                   </td>
-                  <td className="px-2 py-2 text-stone-400">{itemSubtitle(i)}</td>
+                  <td className="px-2 py-2 text-stone-400">{itemType(i)}</td>
+                  <td className="px-2 py-2 text-violet-300">
+                    {i.magic && <span className="capitalize">{magicOf(i)!.rarity}</span>}
+                    {magicOf(i)?.attunement && <span className="ml-1 text-xs text-stone-500">(attunement)</span>}
+                  </td>
                   <td className="px-2 py-2 text-stone-400">{itemSummary(i)}</td>
                   <td className="whitespace-nowrap px-2 py-2 text-stone-400">{i.cost}</td>
                   <td className="whitespace-nowrap px-2 py-2 text-stone-400">{i.weight}</td>

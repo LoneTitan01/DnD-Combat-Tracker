@@ -275,6 +275,38 @@ export interface ToolDetails {
   type: ToolType;
 }
 
+export const ITEM_RARITIES = ['common', 'uncommon', 'rare', 'very rare', 'legendary', 'artifact'] as const;
+export type ItemRarity = (typeof ITEM_RARITIES)[number];
+
+/** A spell the item lets its wielder cast, an action they can take with it, or something it always does. */
+export const MAGIC_EFFECT_KINDS = ['spell', 'action', 'passive'] as const;
+export type MagicEffectKind = (typeof MAGIC_EFFECT_KINDS)[number];
+
+export interface MagicEffect {
+  id: ID;
+  kind: MagicEffectKind;
+  /** The action's or passive's name. For a spell, blank = the linked spell's name. */
+  name: string;
+  /** For a spell: the spell from the spell list it casts. */
+  spellId?: ID;
+  /** What it does: a save DC, damage, how long it lasts. */
+  description: string;
+  /** Uses (charges) before it recharges. 0 = unlimited. Passives don't use it. */
+  uses: number;
+  /** Free text: "dawn", "long rest". Blank = it doesn't recharge. */
+  recharge: string;
+}
+
+export interface MagicDetails {
+  rarity: ItemRarity;
+  attunement: boolean;
+  /** Who can attune to it, printed after "requires attunement": "by a wizard". */
+  attunementBy: string;
+  /** The +N enchantment: weapons add it to attack and damage rolls, armor and shields to AC. 0 = none. */
+  bonus: number;
+  effects: MagicEffect[];
+}
+
 /**
  * An item in the item list, shared by all campaigns like the bestiary and the spell list. Every item
  * belongs to one of four categories. Details for the other categories are kept when the category
@@ -292,6 +324,8 @@ export interface Item {
   weapon?: WeaponDetails;
   armor?: ArmorDetails;
   tool?: ToolDetails;
+  /** Present on magic items only. */
+  magic?: MagicDetails;
   createdAt: number;
   updatedAt: number;
 }
