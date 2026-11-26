@@ -72,7 +72,7 @@ export function SpellEditor() {
         >
           <SpellForm value={s} onChange={setDraft} autoFocusName={!id} />
 
-          <div className="fixed inset-x-0 bottom-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">
+          <div className="fixed bottom-0 left-[var(--nav-width,0px)] right-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">
             <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-end gap-3 px-4 py-3">
               {showErrors && errors.length > 0 && (
                 <ul className="mr-auto text-xs text-red-400">
@@ -92,7 +92,7 @@ export function SpellEditor() {
         </form>
 
         <aside className="hidden lg:block">
-          <div className="sticky top-20 max-h-[calc(100dvh-10rem)] overflow-y-auto">
+          <div className="sticky top-6 max-h-[calc(100dvh-3rem)] overflow-y-auto">
             <p className="mb-2 text-xs uppercase tracking-wider text-stone-500">Preview</p>
             <article className="rounded-lg border border-sky-900/60 bg-stone-900 p-5 shadow-lg">
               <SpellCard spell={{ ...s, name: s.name || 'Unnamed spell' }} />

@@ -273,7 +273,7 @@ export function TrackerView({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="sticky top-[57px] z-[5] -mx-4 flex flex-wrap items-center gap-3 border-b border-stone-800 bg-stone-950/95 px-4 py-2 backdrop-blur">
+      <div className="sticky top-0 z-[5] -mx-4 flex flex-wrap items-center gap-3 border-b border-stone-800 bg-stone-950/95 py-2 pl-[calc(1rem+var(--nav-button-space,0px))] pr-4 backdrop-blur">
         <p className="text-lg font-semibold">
           Round <span className="tabular-nums text-amber-300" aria-label="Round">{combat.round}</span>
         </p>
@@ -380,7 +380,7 @@ export function TrackerView({
           <CombatLog combat={combat} templates={templates} update={update} />
         </div>
 
-        <aside className="lg:sticky lg:top-32 lg:max-h-[calc(100dvh-9rem)] lg:self-start lg:overflow-y-auto">
+        <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:self-start lg:overflow-y-auto">
           {multi ? (
             <MultiTargetPanel
               combat={combat}

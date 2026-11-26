@@ -1,15 +1,16 @@
+import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
 import { Select } from '../../components/ui';
 import { useCampaign } from './useCampaign';
 
-/** Sits at the top of every DM page: which campaign you're in, and a quick switch. */
-export function CampaignBar() {
+/** Sits at the top of every DM page: which campaign you're in, and a quick switch. `actions` sit at the far right. */
+export function CampaignBar({ actions }: { actions?: ReactNode }) {
   const { campaigns, campaign, select } = useCampaign();
   const onCampaignsPage = useLocation().pathname === '/campaigns';
   if (!campaigns || !campaign) return null;
   return (
     <div className="border-b border-stone-800/70 bg-stone-900/60">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 py-2 pl-[calc(1rem+var(--nav-button-space,0px))] pr-4 text-sm">
         <Link
           to="/campaigns"
           className="text-xs font-semibold uppercase tracking-wider text-stone-500 hover:text-amber-300"
@@ -42,6 +43,7 @@ export function CampaignBar() {
             {campaigns.length > 1 ? 'Manage campaigns' : 'New campaign'}
           </Link>
         )}
+        <div className={`${onCampaignsPage ? 'ml-auto ' : ''}flex items-center gap-2`}>{actions}</div>
       </div>
     </div>
   );

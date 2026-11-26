@@ -56,7 +56,7 @@ test('multi-target damage: same roll, separate modifiers, separate undo', async 
   await expect(hp(page, 'Dragon 1')).toHaveAttribute('aria-valuenow', '36');
 
   // Esc leaves multi-target mode; clicking a row selects again.
-  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.locator('main').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('Escape');
   await expect(page.getByRole('heading', { name: 'Multi-target damage' })).toHaveCount(0);
   await row(page, 'Dragon 1').getByText('Dragon 1').first().click();
@@ -161,7 +161,7 @@ test('a stat block condition immunity is shown and cannot be applied', async ({ 
 test('keyboard shortcuts: N next turn (not while typing), M multi-target, Esc closes', async ({ page }) => {
   await runningCombat(page);
   // Order: Aria 20, Goblin 1 14, Goblin 2 13, Dragon 1 12, Brom 8.
-  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.locator('main').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('n');
   await expect(currentTurn(page)).toHaveAttribute('aria-label', 'Goblin 1');
   await page.keyboard.press('N');
@@ -189,7 +189,7 @@ test('keyboard shortcuts: N next turn (not while typing), M multi-target, Esc cl
   // M toggles multi-target.
   await page.keyboard.press('m');
   await expect(page.getByRole('heading', { name: 'Multi-target damage' })).toBeVisible();
-  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.locator('main').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('m');
   await expect(page.getByRole('heading', { name: 'Multi-target damage' })).toHaveCount(0);
   await expect(turnOrder(page).getByRole('listitem')).toHaveCount(5);
@@ -222,7 +222,7 @@ test('shortcuts can be rebound on the Settings page, and a clash swaps the two k
   // The tracker uses the new keys and shows them.
   await runningCombat(page);
   await expect(page.getByRole('button', { name: 'Next turn →' })).toHaveAttribute('aria-keyshortcuts', 'M');
-  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.locator('main').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('n');
   await expect(currentTurn(page)).toHaveAttribute('aria-label', 'Aria');
   await page.keyboard.press('m');
@@ -297,7 +297,7 @@ test('the stat block follows the turn: opens for creatures, closes for players',
   const amount = (name: string) => page.getByRole('textbox', { name: `Amount for ${name}` });
   await expect(page.getByRole('textbox', { name: /^Amount for / })).toHaveCount(0);
 
-  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.locator('main').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('n');
   await expect(amount('Goblin 1')).toBeVisible();
   // Opening by itself doesn't grab the keyboard, so N keeps working.

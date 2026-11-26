@@ -77,6 +77,8 @@ test('NPCs live at locations: pick a place, see them there, search, move, delete
   await page.goto('#/locations');
   await page.getByRole('link', { name: 'Leilon', exact: true }).click();
   await page.getByRole('button', { name: 'Delete' }).click();
+  // Wait for the delete to finish (it returns to the list) before leaving the page.
+  await expect(page).toHaveURL(/#\/locations$/);
   await page.goto('#/npcs');
   await expect(page.getByRole('combobox', { name: 'Location for Sildar' })).toHaveValue('');
 
@@ -85,6 +87,7 @@ test('NPCs live at locations: pick a place, see them there, search, move, delete
   await expect(page.getByText(/4 NPCs/)).toBeVisible();
   await page.goto('#/npcs');
   await page.getByRole('row', { name: /Stranger/ }).getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByRole('row', { name: /Stranger/ })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole('textbox', { name: /^Name for / })).toHaveCount(3);
   await expect(page.getByRole('combobox', { name: 'Location for Aubrey' })).toHaveValue(/.+/);
