@@ -301,8 +301,20 @@ export interface Npc {
   locationId?: ID;
   /** DM notes: who they are, what they want, what they know. Missing on NPCs saved before notes existed. */
   notes?: string;
+  /** The organizations the NPC belongs to. Missing when they belong to none. */
+  organizationIds?: ID[];
   /** Set on every save; used by sync to pick the newest copy. */
   updatedAt?: number;
+}
+
+/** A group NPCs can belong to in one campaign: a guild, a cult, a noble house. Members are listed on the NPCs. */
+export interface Organization {
+  id: ID;
+  campaignId: ID;
+  name: string;
+  description: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface EncounterEntry {
@@ -444,7 +456,7 @@ export interface Combat {
 
 // ---------- sync ----------
 
-export const SYNC_TABLES = ['campaigns', 'creatures', 'spells', 'players', 'locations', 'npcs', 'encounters', 'combats'] as const;
+export const SYNC_TABLES = ['campaigns', 'creatures', 'spells', 'players', 'locations', 'npcs', 'organizations', 'encounters', 'combats'] as const;
 export type SyncTable = (typeof SYNC_TABLES)[number];
 
 /** A record deleted on some device, so other devices delete it too instead of bringing it back. */
@@ -461,6 +473,7 @@ export interface SyncData {
   players: Player[];
   locations: Location[];
   npcs: Npc[];
+  organizations: Organization[];
   encounters: Encounter[];
   combats: Combat[];
   deletions: Tombstone[];

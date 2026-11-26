@@ -119,7 +119,12 @@ test('NPCs have notes: write them, find them by search, open them from a locatio
   await page.reload();
   await page.getByRole('link', { name: 'Phandalin' }).click();
   await page.getByRole('region', { name: 'NPCs' }).getByRole('link', { name: 'Sister Garaele' }).click();
-  await expect(page.getByRole('textbox', { name: 'Notes text for Sister Garaele' })).toHaveValue(
-    'Harper agent.\nWants the banshee Agatha found.',
-  );
+  // Saved notes open as text; Edit brings back the editor with them in it.
+  await expect(page.getByLabel('Notes of Sister Garaele')).toHaveText('Harper agent.\nWants the banshee Agatha found.');
+  await page.getByRole('button', { name: "Edit Sister Garaele's notes" }).click();
+  await expect(notes).toBeFocused();
+  await expect(notes).toHaveValue('Harper agent.\nWants the banshee Agatha found.');
+  await notes.fill('Harper agent.');
+  await notes.blur();
+  await expect(page.getByLabel('Notes of Sister Garaele')).toHaveText('Harper agent.');
 });
