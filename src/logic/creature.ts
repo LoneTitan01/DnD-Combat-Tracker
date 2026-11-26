@@ -171,8 +171,11 @@ export interface CreatureFilter {
   type?: string;
   crMin?: ChallengeRating;
   crMax?: ChallengeRating;
-  sort?: 'name' | 'cr';
+  sort?: CreatureSort;
 }
+
+export const CREATURE_SORTS = ['name', 'type', 'cr'] as const;
+export type CreatureSort = (typeof CREATURE_SORTS)[number];
 
 export function filterCreatures(list: readonly CreatureTemplate[], f: CreatureFilter = {}): CreatureTemplate[] {
   const q = f.query?.trim().toLowerCase() ?? '';
@@ -186,7 +189,18 @@ export function filterCreatures(list: readonly CreatureTemplate[], f: CreatureFi
     return !(cr < min || cr > max);
   });
   const byName = (a: CreatureTemplate, b: CreatureTemplate) => a.name.localeCompare(b.name);
-  return out.sort(f.sort === 'cr' ? (a, b) => crToNumber(a.cr) - crToNumber(b.cr) || byName(a, b) : byName);
+  const byCr = (a: CreatureTemplate, b: CreatureTemplate) => crToNumber(a.cr) - crToNumber(b.cr);
+  const typeOf = (t: CreatureTemplate) => t.type.trim().toLowerCase();
+  // Creatures with no type go last rather than first.
+  const byType = (a: CreatureTemplate, b: CreatureTemplate) =>
+    Number(!typeOf(a)) - Number(!typeOf(b)) || typeOf(a).localeCompare(typeOf(b));
+  const compare =
+    f.sort === 'cr'
+      ? (a: CreatureTemplate, b: CreatureTemplate) => byCr(a, b) || byName(a, b)
+      : f.sort === 'type'
+        ? (a: CreatureTemplate, b: CreatureTemplate) => byType(a, b) || byCr(a, b) || byName(a, b)
+        : byName;
+  return out.sort(compare);
 }
 
 /** Distinct creature types for the filter dropdown, lower-cased and sorted. */

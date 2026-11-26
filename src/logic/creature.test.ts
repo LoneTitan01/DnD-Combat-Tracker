@@ -133,6 +133,13 @@ describe('filterCreatures', () => {
   it('sorts by CR', () => {
     expect(names(filterCreatures(list, { sort: 'cr' }))).toEqual(['Goblin', 'Goblin Boss', 'Owlbear', 'Adult Red Dragon']);
   });
+  it('sorts by type, then CR, then name', () => {
+    const withUntyped = [...list, makeTemplate({ name: 'Mystery', type: '', cr: '0' })];
+    expect(names(filterCreatures(withUntyped, { sort: 'type' }))).toEqual(['Adult Red Dragon', 'Goblin', 'Goblin Boss', 'Owlbear', 'Mystery']);
+  });
+  it('sorts by name by default', () => {
+    expect(names(filterCreatures(list))).toEqual(['Adult Red Dragon', 'Goblin', 'Goblin Boss', 'Owlbear']);
+  });
   it('lists distinct types', () => {
     expect(creatureTypes(list)).toEqual(['dragon', 'humanoid', 'monstrosity']);
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Spell } from '../models';
-import { blankSpell, normalizeSpell, spellSubtitle, splitSpellMentions, suggestedSpells, unmentionedSpells } from './spells';
+import { blankSpell, castingTimeRank, filterSpells, normalizeSpell, type SpellSort, spellSubtitle, splitSpellMentions, suggestedSpells, unmentionedSpells } from './spells';
 import { makeTemplate } from './testUtils';
 
 const spell = (name: string, patch: Partial<Spell> = {}): Spell => ({ ...blankSpell(), id: name, name, ...patch });
@@ -96,5 +96,49 @@ describe('normalizeSpell', () => {
 
   it('skips entries without a name', () => {
     expect(normalizeSpell({ level: 1 })).toBeNull();
+  });
+});
+
+describe('castingTimeRank', () => {
+  it('orders reactions, bonus actions, actions, minutes and hours', () => {
+    const times = ['1 hour', '1 action', '10 minutes', '1 reaction, which you take when you are hit', '1 bonus action', '1 minute', '8 hours'];
+    expect([...times].sort((a, b) => castingTimeRank(a) - castingTimeRank(b))).toEqual([
+      '1 reaction, which you take when you are hit',
+      '1 bonus action',
+      '1 action',
+      '1 minute',
+      '10 minutes',
+      '1 hour',
+      '8 hours',
+    ]);
+  });
+  it('puts unrecognised casting times last', () => {
+    expect(castingTimeRank('')).toBe(Infinity);
+    expect(castingTimeRank('Special')).toBe(Infinity);
+  });
+});
+
+describe('filterSpells sorting', () => {
+  const list = [
+    spell('Fireball', { level: 3, school: 'evocation', castingTime: '1 action' }),
+    spell('Shield', { level: 1, school: 'abjuration', castingTime: '1 reaction' }),
+    spell('Misty Step', { level: 2, school: 'conjuration', castingTime: '1 bonus action' }),
+    spell('Alarm', { level: 1, school: 'abjuration', castingTime: '1 minute' }),
+    spell('Fire Bolt', { level: 0, school: 'evocation', castingTime: '1 action' }),
+  ];
+  const names = (sort?: SpellSort) =>
+    filterSpells(list, { sort }).map((s) => s.name);
+
+  it('sorts by level then name by default', () => {
+    expect(names()).toEqual(['Fire Bolt', 'Alarm', 'Shield', 'Misty Step', 'Fireball']);
+  });
+  it('sorts by name', () => {
+    expect(names('name')).toEqual(['Alarm', 'Fire Bolt', 'Fireball', 'Misty Step', 'Shield']);
+  });
+  it('sorts by school, then level, then name', () => {
+    expect(names('school')).toEqual(['Alarm', 'Shield', 'Misty Step', 'Fire Bolt', 'Fireball']);
+  });
+  it('sorts by casting time, then level, then name', () => {
+    expect(names('castingTime')).toEqual(['Shield', 'Misty Step', 'Fire Bolt', 'Fireball', 'Alarm']);
   });
 });
