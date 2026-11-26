@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType, type CSSProperties } from 'react';
 import { NavLink, Outlet } from 'react-router';
-import { ensureCampaign, seedSrdSpells } from '../db';
+import { ensureCampaign, removeBundledSpells } from '../db';
 import { CampaignBar } from '../features/campaigns/CampaignBar';
 import { SyncBadge } from '../features/settings/SyncSettings';
 import { startSync } from '../sync/manager';
@@ -153,13 +153,13 @@ export function AppShell() {
   useEffect(startSync, []);
   useEffect(() => void ensureCampaign(), []);
   useEffect(() => {
-    // Not urgent, and a few hundred writes: wait until the first screen has loaded.
-    const seed = () => void seedSrdSpells().catch((e) => console.warn('Could not add the SRD spells:', e));
+    // Not urgent: wait until the first screen has loaded.
+    const clean = () => void removeBundledSpells().catch((e) => console.warn('Could not remove the old default spells:', e));
     if (typeof requestIdleCallback === 'function') {
-      const handle = requestIdleCallback(seed, { timeout: 3000 });
+      const handle = requestIdleCallback(clean, { timeout: 3000 });
       return () => cancelIdleCallback(handle);
     }
-    const handle = setTimeout(seed, 1000);
+    const handle = setTimeout(clean, 1000);
     return () => clearTimeout(handle);
   }, []);
   const { mode, setMode, reopen } = useNavMode();

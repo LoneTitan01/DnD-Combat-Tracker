@@ -1,24 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-test('spells: the SRD 5.2 spells come built in, and deleted ones can be restored', async ({ page }) => {
+test('spells: the list starts empty, with no built-in spells', async ({ page }) => {
   await page.goto('#/spells');
-  await expect(page.getByRole('link', { name: 'Fireball', exact: true })).toBeVisible();
-  await expect(page.getByText('339 spells')).toBeVisible();
-  await expect(page.getByText('System Reference Document 5.2')).toBeVisible();
-
-  await page.getByRole('link', { name: 'Counterspell', exact: true }).click();
-  await expect(page.getByText('Reaction, which you take when you see a creature')).toBeVisible();
-
-  await page.goto('#/spells?q=fireball&level=3');
-  page.once('dialog', (d) => void d.accept());
-  await page.getByRole('button', { name: 'Delete' }).click();
-  await expect(page.getByText('No spells match these filters.')).toBeVisible();
-  // A reload doesn't bring it back on its own; Restore does.
+  await expect(page.getByText('No spells yet.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Restore SRD spells' })).toHaveCount(0);
+  // Nothing gets added after the first screen has loaded either.
+  await page.waitForTimeout(1500);
   await page.reload();
-  await expect(page.getByText('No spells match these filters.')).toBeVisible();
-  await page.getByRole('button', { name: 'Restore SRD spells' }).click();
-  await expect(page.getByRole('status')).toContainText('Restored 1 SRD spell.');
-  await expect(page.getByRole('link', { name: 'Fireball', exact: true })).toBeVisible();
+  await expect(page.getByText('No spells yet.')).toBeVisible();
 });
 
 test('spells: create a spell, link it to a stat block, hover it there', async ({ page }) => {

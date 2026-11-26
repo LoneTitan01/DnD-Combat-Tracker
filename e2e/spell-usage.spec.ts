@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { row } from "./helpers";
+import { addTestSpells, row } from "./helpers";
 
 test("spell usage: limit a linked spell, then spend and give back uses in combat", async ({
   page,
 }) => {
+  await addTestSpells(page);
   // ---- Stat block: link Fireball and limit it to 2 per long rest ----
   await page.goto("#/bestiary/new");
   await page.getByLabel("Name", { exact: true }).fill("Mage");

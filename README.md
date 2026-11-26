@@ -14,7 +14,7 @@ A local-first web app for preparing D&D 5e encounters and running them at the ta
 - Deleting a stat block warns about any encounters that use it.
 
 ### Spells
-- Comes with the 339 spells of the SRD 5.2 (the free part of the 2024 rules). Edit or delete them like your own spells. **Restore SRD spells** brings back any you deleted.
+- The list starts empty: the app ships no spell text. Add your own, paste them with Bulk add, or import a JSON file.
 - Create spells, link them to stat blocks, and hover a spell's name in a stat block to see its text.
 - **Bulk add** spells the same way: paste one per box, review and fix each, then approve.
 
@@ -73,7 +73,6 @@ npm run dev        # dev server
 npm test           # unit tests (Vitest)
 npm run e2e        # browser tests (Playwright, uses the installed Edge; PW_CHANNEL=chrome for Chrome)
                    #   --project=app: screens on the dev server; --project=pwa: offline/install on the build
-node scripts/build-srd-spells.mjs   # rebuild src/data/srd-spells.json from the Open5e API
 node scripts/make-icons.mjs   # re-render the PNG app icons after changing public/icon.svg
 npm run build      # typecheck + production build to dist/
 npm run preview    # serve the production build
@@ -111,7 +110,3 @@ Sync needs a Google OAuth client ID. It isn't a secret, because it only works fr
 - `e2e/`: Playwright browser tests.
 
 Randomness is injected (`Rng`) so tests are deterministic.
-
-## Credits
-
-This work includes material from the System Reference Document 5.2 ("SRD 5.2") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode. The spell data was converted from the [Open5e](https://open5e.com/) API.

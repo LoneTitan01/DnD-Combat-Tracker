@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { addTestSpells } from './helpers';
 
 const GOBLIN = `Goblin Boss
 Small humanoid (goblinoid), neutral evil
@@ -21,6 +22,7 @@ Actions
 Ember Breath (Recharge 5-6). The drake exhales embers; it knows fireball.`;
 
 test('bulk add stat blocks: paste several, review in the carousel, approve one and then the rest', async ({ page }) => {
+  await addTestSpells(page);
   await page.goto('#/bestiary');
   await page.getByRole('button', { name: 'Bulk add' }).click();
   await expect(page.getByRole('heading', { name: 'Bulk add stat blocks' })).toBeVisible();
@@ -61,7 +63,7 @@ test('bulk add stat blocks: paste several, review in the carousel, approve one a
   await expect(page.getByRole('link', { name: 'Goblin Chief' })).toBeVisible();
   await page.getByRole('link', { name: 'Ember Drake' }).click();
   await expect(page.getByText('33 (6d8 + 6)')).toBeVisible();
-  // fireball, named in its text, was linked from the SRD spells.
+  // fireball, named in its text, was linked from the spell list.
   await expect(page.locator('article').getByRole('button', { name: 'fireball' })).toBeVisible();
 });
 

@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Button, Card, PageHeader, Select, TextInput } from '../../components/ui';
 import { useUrlFilters } from '../../components/useUrlFilters';
-import { db, restoreSrdSpells } from '../../db';
+import { db } from '../../db';
 import { filterSpells, spellLevelLabel, spellSchools } from '../../logic';
 import { confirmAndDeleteSpell, describeSpellImport, downloadSpells, importSpellFile } from './actions';
 import { SpellMention } from './SpellMention';
@@ -43,15 +43,6 @@ export function SpellsPage() {
     }
   };
 
-  const onRestore = async () => {
-    try {
-      const n = await restoreSrdSpells();
-      setMessage({ text: n ? `Restored ${n} SRD spell${n === 1 ? '' : 's'}.` : 'All SRD spells are already in the list.' });
-    } catch (e) {
-      setMessage({ text: e instanceof Error ? e.message : 'Restore failed.', error: true });
-    }
-  };
-
   return (
     <>
       <PageHeader title="Spells">
@@ -62,12 +53,6 @@ export function SpellsPage() {
           className="hidden"
           onChange={(e) => void onImport(e.target.files)}
         />
-        <Button
-          onClick={() => void onRestore()}
-          title="Adds back any of the SRD 5.2 (2024 rules) spells that aren't in the list, including deleted ones"
-        >
-          Restore SRD spells
-        </Button>
         <Button onClick={() => fileInput.current?.click()}>Import JSON</Button>
         <Button
           disabled={!all?.length}
@@ -134,7 +119,7 @@ export function SpellsPage() {
         <Card className="text-center text-sm text-stone-400">
           <p>No spells yet.</p>
           <p className="mt-1">
-            Create one, import a JSON file, or restore the SRD spells. Link spells to a stat block in its editor, and their names in the stat block
+            Create one, paste several with Bulk add, or import a JSON file. Link spells to a stat block in its editor, and their names in the stat block
             show the spell on hover.
           </p>
         </Card>
@@ -189,23 +174,6 @@ export function SpellsPage() {
           </p>
         </Card>
       )}
-
-      <p className="mt-6 text-xs leading-relaxed text-stone-500">
-        Includes the spells of the{' '}
-        <a href="https://www.dndbeyond.com/srd" target="_blank" rel="noreferrer" className="underline hover:text-stone-300">
-          System Reference Document 5.2
-        </a>{' '}
-        (“SRD 5.2”) by Wizards of the Coast LLC, licensed under the{' '}
-        <a
-          href="https://creativecommons.org/licenses/by/4.0/legalcode"
-          target="_blank"
-          rel="noreferrer"
-          className="underline hover:text-stone-300"
-        >
-          Creative Commons Attribution 4.0 International License
-        </a>
-        .
-      </p>
     </>
   );
 }
