@@ -43,7 +43,7 @@ A local-first web app for preparing D&D 5e encounters and running them at the ta
 - **Combat log and undo:** every damage, heal, temp HP, ability use and recharge roll is logged. Each entry can be undone on its own, without rewinding the rest of the combat.
 - **XP tally** for defeated creatures. When every creature is down, the app offers to end the combat. An ended combat keeps a recap.
 - **Autosave:** every change is saved, and a "Saving… / All changes saved" indicator shows when it's done. Running combats can be resumed later from the Combats list.
-- **Keyboard shortcuts:** `N` next turn, `M` multi-target, `Esc` closes the panel. Shortcuts are ignored while typing.
+- **Keyboard shortcuts:** `N` next turn, `M` multi-target, `Esc` closes the panel. Shortcuts are ignored while typing, and can be changed under **Settings → Keyboard shortcuts** (saved per device, or shared between devices with **Settings → Sync → Sync keyboard shortcuts**).
 
 ### Player-facing screen
 - Open `#/table` in a second window on the same computer, for example on a TV. It shows the round, whose turn it is and an "Up Next" banner, updated live from the DM's screen.
@@ -53,7 +53,7 @@ A local-first web app for preparing D&D 5e encounters and running them at the ta
 - Installable PWA with app icons and an "Install app" button. It works fully offline after the first load, and the app asks the browser not to evict its stored data.
 
 ### Google sync (optional)
-- On the **Sync** page, connect a Google account to keep stat blocks, party, encounters and combats the same in every browser signed in to that account. Without it, everything stays on the one device.
+- Under **Settings → Sync**, connect a Google account to keep stat blocks, party, encounters and combats the same in every browser signed in to that account. Without it, everything stays on the one device.
 - The data is stored as one file in the account's Google Drive app data folder: hidden, and visible only to this app (`drive.appdata` scope). There's no server.
 - Sync runs a few seconds after each change, when the app is reopened or comes back online, and every 5 minutes. A header badge shows the status.
 - For each item, the newest edit wins. Deletions sync too.

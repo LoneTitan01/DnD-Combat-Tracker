@@ -447,9 +447,18 @@ export interface SyncData {
   deletions: Tombstone[];
 }
 
+/** Keyboard shortcuts as shared through sync: action id → key, stamped like a record. */
+export interface SyncedHotkeys {
+  keys: Record<string, string>;
+  /** When they were last changed on some device; 0 = never changed (the defaults). */
+  updatedAt: number;
+}
+
 /** The file kept in the user's Google Drive (app data folder). */
 export interface SyncFile extends SyncData {
   app: 'dm-combat-tracker';
   format: 1;
   savedAt: number;
+  /** Only present once a device with shortcut sync turned on has synced. */
+  hotkeys?: SyncedHotkeys;
 }

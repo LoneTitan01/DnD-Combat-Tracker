@@ -91,4 +91,14 @@ describe('parseSyncFile', () => {
     expect(() => parseSyncFile(null)).toThrow();
     expect(() => parseSyncFile({ app: 'dm-combat-tracker', format: 2 })).toThrow(/newer version/);
   });
+
+  it('keeps usable shortcuts and drops broken ones', () => {
+    const base = { app: 'dm-combat-tracker', format: 1, savedAt: 5 };
+    expect(parseSyncFile(base).hotkeys).toBeUndefined();
+    expect(parseSyncFile({ ...base, hotkeys: { keys: { nextTurn: 't', bad: 3 }, updatedAt: 9 } }).hotkeys).toEqual({
+      keys: { nextTurn: 't' },
+      updatedAt: 9,
+    });
+    expect(parseSyncFile({ ...base, hotkeys: { keys: { nextTurn: 't' } } }).hotkeys).toBeUndefined();
+  });
 });

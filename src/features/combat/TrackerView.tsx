@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useShortcuts } from '../../components/shortcuts';
+import { ariaKey, keyLabel, useHotkeys } from '../settings/hotkeys';
 import { Button, Card, Select } from '../../components/ui';
 import { db } from '../../db';
 import {
@@ -259,10 +260,11 @@ export function TrackerView({
     setTargets(next);
   };
 
+  const hotkeys = useHotkeys();
   useShortcuts({
-    n: () => update(nextTurn),
-    m: toggleMulti,
-    Escape: () => {
+    [hotkeys.nextTurn]: () => update(nextTurn),
+    [hotkeys.multiTarget]: toggleMulti,
+    [hotkeys.close]: () => {
       if (multi) toggleMulti();
       else if (adding) setAdding(null);
       else setSelectedId(null);
@@ -278,22 +280,22 @@ export function TrackerView({
         <Button
           variant="primary"
           className="px-6 py-2 text-base"
-          aria-keyshortcuts="N"
-          title="Next turn (N)"
+          aria-keyshortcuts={ariaKey(hotkeys.nextTurn)}
+          title={`Next turn (${keyLabel(hotkeys.nextTurn)})`}
           onClick={() => update(nextTurn)}
         >
           Next turn →
         </Button>
         <p className="hidden text-xs text-stone-500 xl:block">
-          <kbd className="rounded border border-stone-700 px-1">N</kbd> next turn ·{' '}
-          <kbd className="rounded border border-stone-700 px-1">M</kbd> multi-target ·{' '}
-          <kbd className="rounded border border-stone-700 px-1">Esc</kbd> close
+          <kbd className="rounded border border-stone-700 px-1">{keyLabel(hotkeys.nextTurn)}</kbd> next turn ·{' '}
+          <kbd className="rounded border border-stone-700 px-1">{keyLabel(hotkeys.multiTarget)}</kbd> multi-target ·{' '}
+          <kbd className="rounded border border-stone-700 px-1">{keyLabel(hotkeys.close)}</kbd> close
         </p>
         <div className="ml-auto flex flex-wrap gap-2">
           <Button
             aria-pressed={multi}
-            aria-keyshortcuts="M"
-            title="Damage several creatures at once (M)"
+            aria-keyshortcuts={ariaKey(hotkeys.multiTarget)}
+            title={`Damage several creatures at once (${keyLabel(hotkeys.multiTarget)})`}
             className={multi ? 'border-sky-400! bg-sky-600! text-white! hover:bg-sky-500!' : ''}
             onClick={toggleMulti}
           >

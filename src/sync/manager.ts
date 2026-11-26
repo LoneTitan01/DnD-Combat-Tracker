@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { onLocalChange } from '../db';
-import { syncOnce } from './engine';
+import { applySyncedHotkeys, onHotkeysEdited, syncedHotkeys } from '../features/settings/hotkeys';
+import { syncOnce, type HotkeySync } from './engine';
 import {
   AuthExpiredError,
   DriveRemote,
@@ -36,6 +37,8 @@ export interface SyncState {
   error?: string;
   /** Google's sign-in script is loaded, so Connect / Reconnect can open the popup. */
   ready: boolean;
+  /** This device shares its keyboard shortcuts through sync. */
+  syncHotkeys: boolean;
 }
 
 const PREFS_KEY = 'dm-sync';
@@ -45,6 +48,8 @@ const POLL_EVERY = 5 * 60_000;
 
 interface Prefs {
   enabled: boolean;
+  /** Survives disconnecting: it's a preference for this device, not part of the connection. */
+  syncHotkeys?: boolean;
   email?: string;
   lastSyncedAt?: number;
 }
@@ -76,6 +81,7 @@ let state: SyncState = {
   email: prefs.email,
   lastSyncedAt: prefs.lastSyncedAt,
   ready: false,
+  syncHotkeys: !!prefs.syncHotkeys,
 };
 const subscribers = new Set<() => void>();
 
@@ -104,6 +110,8 @@ export function useSyncState(): SyncState {
 
 // ---------- syncing ----------
 
+const HOTKEYS: HotkeySync = { local: syncedHotkeys, apply: applySyncedHotkeys };
+
 let running: Promise<void> | null = null;
 let again = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -130,7 +138,7 @@ export function syncNow(): Promise<void> {
       }
       set({ phase: 'syncing', error: undefined });
       try {
-        await syncOnce(new DriveRemote(() => token!.accessToken));
+        await syncOnce(new DriveRemote(() => token!.accessToken), undefined, prefs.syncHotkeys ? HOTKEYS : undefined);
         savePrefs({ ...prefs, lastSyncedAt: Date.now() });
         set({ phase: 'synced', lastSyncedAt: prefs.lastSyncedAt });
       } catch (e) {
@@ -170,12 +178,19 @@ export async function connectSync(): Promise<void> {
   await syncNow();
 }
 
+/** Turns sharing this device's keyboard shortcuts through sync on or off, syncing right away when on. */
+export function setSyncHotkeys(on: boolean): void {
+  savePrefs({ ...prefs, syncHotkeys: on });
+  set({ syncHotkeys: on });
+  if (on) schedule(0);
+}
+
 /** Stops syncing on this device. Its data stays; so does the copy in Google Drive. */
 export async function disconnectSync(): Promise<void> {
   clearTimeout(timer);
   const t = token;
   saveToken(null);
-  savePrefs({ enabled: false });
+  savePrefs({ enabled: false, syncHotkeys: prefs.syncHotkeys });
   set({ phase: GOOGLE_CLIENT_ID ? 'off' : 'unconfigured', email: undefined, lastSyncedAt: undefined, error: undefined });
   if (t) await revokeAccessToken(t.accessToken);
 }
@@ -198,6 +213,9 @@ export function startSync(): void {
     (e: Error) => set({ ready: false, ...(prefs.enabled ? { error: e.message } : {}) }),
   );
   onLocalChange(() => schedule(CHANGE_DELAY));
+  onHotkeysEdited(() => {
+    if (prefs.syncHotkeys) schedule(CHANGE_DELAY);
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') schedule(0);
   });

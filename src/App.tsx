@@ -1,4 +1,4 @@
-import { HashRouter, Route, Routes } from 'react-router';
+import { HashRouter, Navigate, Route, Routes } from 'react-router';
 import { AppShell } from './components/AppShell';
 import { HomePage } from './features/home/HomePage';
 import { BestiaryPage } from './features/bestiary/BestiaryPage';
@@ -15,11 +15,11 @@ import { LocationPage } from './features/locations/LocationPage';
 import { LocationsPage } from './features/locations/LocationsPage';
 import { NpcsPage } from './features/npcs/NpcsPage';
 import { PartyPage } from './features/party/PartyPage';
+import { SettingsPage } from './features/settings/SettingsPage';
 import { BulkAddSpells } from './features/spells/BulkAddSpells';
 import { SpellEditor } from './features/spells/SpellEditor';
 import { SpellPage } from './features/spells/SpellPage';
 import { SpellsPage } from './features/spells/SpellsPage';
-import { SyncPage } from './features/sync/SyncPage';
 import { TablePage } from './features/table/TablePage';
 
 /** Hash routing so the static build works on GitHub Pages and offline without server rewrites. */
@@ -53,7 +53,9 @@ export default function App() {
           <Route path="locations/:id" element={<LocationPage />} />
           <Route path="locations/:id/edit" element={<LocationEditor key="edit" />} />
           <Route path="npcs" element={<NpcsPage />} />
-          <Route path="sync" element={<SyncPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          {/* Old bookmarks: sync now lives on the Settings page. */}
+          <Route path="sync" element={<Navigate to="/settings" replace />} />
         </Route>
       </Routes>
     </HashRouter>
