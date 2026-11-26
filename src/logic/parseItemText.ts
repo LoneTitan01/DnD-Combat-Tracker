@@ -508,3 +508,31 @@ export function splitItemText(text: string): string[] {
   if (rows.length < 2) return [text];
   return rows.map((r) => (r.heading ? `${r.text}\nType: ${r.heading}` : r.text));
 }
+
+/**
+ * Splits a table pasted for the table import: every line is one item, with no guessing whether the
+ * text is a table. Column headers ("Name Cost Weight") are skipped and section headings ("Martial
+ * Melee Weapons", "Light Armor") are carried onto the rows under them as a "Type:" line, as
+ * {@link splitItemText} does. A row broken mid-list ("…, heavy," then "two-handed") is joined back up.
+ */
+export function splitItemTable(text: string): string[] {
+  const rows: { text: string; heading: string }[] = [];
+  let heading = '';
+  for (const line of cleanLines(text)) {
+    const last = rows[rows.length - 1];
+    if (last && /[,(]$/.test(last.text)) {
+      last.text = `${last.text} ${line}`;
+      continue;
+    }
+    if (!splitRow(line)) {
+      if ((line.match(COLUMN_WORDS) ?? []).length >= 2 && line.split(' ').length <= 10) continue;
+      // A heading names a kind of item without being one: "Light Armor", but not "Shield" or "Dagger".
+      if (kindFromLine(line) && !kindFromName(line) && !/\d/.test(line)) {
+        heading = line;
+        continue;
+      }
+    }
+    rows.push({ text: line, heading });
+  }
+  return rows.map((r) => (r.heading ? `${r.text}\nType: ${r.heading}` : r.text));
+}

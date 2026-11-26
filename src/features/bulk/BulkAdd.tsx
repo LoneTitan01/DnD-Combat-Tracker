@@ -47,6 +47,13 @@ export interface BulkAddProps<T extends { id: string; name: string }> {
   intro?: ReactNode;
   /** Splits one box into several to review (such as the rows of a pasted table). */
   split?: (text: string) => string[];
+  /** Offers a table import: one box where every row is read as its own entry. */
+  table?: {
+    /** Splits the table into one text per row to read. */
+    split: (text: string) => string[];
+    placeholder: string;
+    intro: ReactNode;
+  };
   parse: (text: string) => Parsed<T>;
   validate: (value: T) => string[];
   save: (value: T) => Promise<void>;
@@ -68,15 +75,22 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
   const { noun, nounPlural, parse, validate, save, existingNames } = props;
   const [phase, setPhase] = useState<'paste' | 'review'>('paste');
   const [pastes, setPastes] = useState<Paste[]>(() => [emptyPaste()]);
+  const [mode, setMode] = useState<'boxes' | 'table'>('boxes');
+  const [tableText, setTableText] = useState('');
   const [items, setItems] = useState<Item<T>[]>([]);
   const [index, setIndex] = useState(0);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const filled = pastes.filter((p) => p.text.trim());
-  const sources = filled.flatMap((p) => (props.split ? props.split(p.text) : [p.text]));
+  const table = mode === 'table' ? props.table : undefined;
+  const sources = table
+    ? tableText.trim()
+      ? table.split(tableText)
+      : []
+    : filled.flatMap((p) => (props.split ? props.split(p.text) : [p.text]));
   const pending = items.filter((i) => i.status === 'pending');
-  const unsaved = pending.length > 0 || filled.length > 0;
+  const unsaved = pending.length > 0 || filled.length > 0 || !!tableText.trim();
   useEffect(() => {
     if (!unsaved) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -109,7 +123,8 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
     if (fresh.length === 0) return;
     setIndex(items.length);
     setItems([...items, ...fresh]);
-    setPastes([emptyPaste()]);
+    if (table) setTableText('');
+    else setPastes([emptyPaste()]);
     setMessage(null);
     setPhase('review');
   };
@@ -201,8 +216,29 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
           </Link>
         </PageHeader>
         {banner}
+        {props.table && (
+          <div role="radiogroup" aria-label="Paste as" className="mb-4 inline-flex rounded-md border border-stone-700 p-0.5 text-sm">
+            {(
+              [
+                ['boxes', `One ${noun} per box`],
+                ['table', `Table, one ${noun} per row`],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={mode === value}
+                onClick={() => setMode(value)}
+                className={`rounded px-3 py-1 ${mode === value ? 'bg-amber-500/20 text-amber-100' : 'text-stone-400 hover:text-stone-100'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <p className="mb-4 max-w-3xl text-sm text-stone-400">
-          {props.intro ?? (
+          {table ? table.intro : props.intro ?? (
             <>
               Paste one {noun} per box, copied from a PDF, a website or your own notes. Each is read as well as it can be,
               then you can check and fix every one before adding it.
@@ -217,36 +253,52 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
             </button>
           </p>
         )}
-        <div className="flex flex-col gap-4 pb-24">
-          {pastes.map((p, i) => (
-            <Card key={p.key} className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <label htmlFor={`paste-${p.key}`} className="text-xs uppercase tracking-wider text-stone-500">
-                  {noun.charAt(0).toUpperCase() + noun.slice(1)} {i + 1}
-                </label>
-                {(p.text || pastes.length > 1) && (
-                  <Button
-                    variant="ghost"
-                    aria-label={`Remove ${noun} ${i + 1}`}
-                    onClick={() => setPastes(withTrailingEmpty(pastes.filter((x) => x.key !== p.key)))}
-                  >
-                    ✕
-                  </Button>
-                )}
-              </div>
-              <TextArea
-                id={`paste-${p.key}`}
-                rows={p.text ? 12 : 4}
-                value={p.text}
-                placeholder={props.placeholder}
-                onChange={(e) =>
-                  setPastes(withTrailingEmpty(pastes.map((x) => (x.key === p.key ? { ...x, text: e.target.value } : x))))
-                }
-                className="font-mono text-xs leading-relaxed"
-              />
-            </Card>
-          ))}
-        </div>
+        {table ? (
+          <Card className="mb-24 flex flex-col gap-2">
+            <label htmlFor="paste-table" className="text-xs uppercase tracking-wider text-stone-500">
+              Table
+            </label>
+            <TextArea
+              id="paste-table"
+              rows={tableText ? 20 : 8}
+              value={tableText}
+              placeholder={table.placeholder}
+              onChange={(e) => setTableText(e.target.value)}
+              className="font-mono text-xs leading-relaxed"
+            />
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-4 pb-24">
+            {pastes.map((p, i) => (
+              <Card key={p.key} className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label htmlFor={`paste-${p.key}`} className="text-xs uppercase tracking-wider text-stone-500">
+                    {noun.charAt(0).toUpperCase() + noun.slice(1)} {i + 1}
+                  </label>
+                  {(p.text || pastes.length > 1) && (
+                    <Button
+                      variant="ghost"
+                      aria-label={`Remove ${noun} ${i + 1}`}
+                      onClick={() => setPastes(withTrailingEmpty(pastes.filter((x) => x.key !== p.key)))}
+                    >
+                      ✕
+                    </Button>
+                  )}
+                </div>
+                <TextArea
+                  id={`paste-${p.key}`}
+                  rows={p.text ? 12 : 4}
+                  value={p.text}
+                  placeholder={props.placeholder}
+                  onChange={(e) =>
+                    setPastes(withTrailingEmpty(pastes.map((x) => (x.key === p.key ? { ...x, text: e.target.value } : x))))
+                  }
+                  className="font-mono text-xs leading-relaxed"
+                />
+              </Card>
+            ))}
+          </div>
+        )}
         <div className="fixed bottom-0 left-[var(--nav-width,0px)] right-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-end gap-3 px-4 py-3">
             <span className="mr-auto text-xs text-stone-500">{sources.length ? `${plural(sources.length)} pasted` : 'Nothing pasted yet'}</span>

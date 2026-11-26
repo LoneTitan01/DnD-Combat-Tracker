@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseItemText, splitItemText } from './parseItemText';
+import { parseItemText, splitItemTable, splitItemText } from './parseItemText';
 
 describe('parseItemText', () => {
   it('reads a described weapon', () => {
@@ -192,5 +192,45 @@ This ordinary bag, made from gray, rust, or tan cloth, appears empty. Reaching i
 
   it('splits a gear list without headings', () => {
     expect(splitItemText('Torch 1 cp 1 lb.\nBedroll 1 gp 7 lb.\nWaterskin 2 sp 5 lb. (full)')).toHaveLength(3);
+  });
+});
+
+describe('splitItemTable', () => {
+  it('makes every row an item, even ones without a cost or damage', () => {
+    const rows = splitItemTable(`Name Cost Weight
+Adventuring Gear
+Torch
+Rope, hempen (50 feet) 1 gp 10 lb.
+Shield 10 gp 6 lb.
+Bag of holding`);
+    expect(rows).toEqual([
+      'Torch\nType: Adventuring Gear',
+      'Rope, hempen (50 feet) 1 gp 10 lb.\nType: Adventuring Gear',
+      'Shield 10 gp 6 lb.\nType: Adventuring Gear',
+      'Bag of holding\nType: Adventuring Gear',
+    ]);
+    expect(parseItemText(rows[0]!).value).toMatchObject({ name: 'Torch', category: 'gear' });
+    expect(parseItemText(rows[1]!).value).toMatchObject({ name: 'Rope, hempen (50 feet)', cost: '1 gp', weight: '10 lb.' });
+  });
+
+  it('carries weapon and armor headings, keeps a lone "Shield" as an item and joins broken rows', () => {
+    const rows = splitItemTable(`Martial Ranged Weapons
+Longbow 50 gp 1d8 piercing 2 lb. Ammunition (range 150/600), heavy,
+two-handed
+Light Armor
+Padded 5 gp 11 + Dex modifier 8 lb.
+Shield`);
+    expect(rows).toEqual([
+      'Longbow 50 gp 1d8 piercing 2 lb. Ammunition (range 150/600), heavy, two-handed\nType: Martial Ranged Weapons',
+      'Padded 5 gp 11 + Dex modifier 8 lb.\nType: Light Armor',
+      'Shield\nType: Light Armor',
+    ]);
+    expect(parseItemText(rows[0]!).value.weapon).toMatchObject({ class: 'martial', range: 'ranged' });
+    expect(parseItemText(rows[1]!).value).toMatchObject({ category: 'armor', armor: { type: 'light' } });
+  });
+
+  it('reads a single row and ignores blank lines', () => {
+    expect(splitItemTable('\n  Dagger 2 gp  \n\n')).toEqual(['Dagger 2 gp']);
+    expect(splitItemTable('   \n')).toEqual([]);
   });
 });
