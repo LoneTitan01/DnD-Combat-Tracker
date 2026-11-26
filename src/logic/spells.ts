@@ -60,6 +60,35 @@ export interface SpellFilter {
   /** '' = any level. */
   level?: string;
   school?: string;
+  /** Defaults to 'level' (level, then name), the order spell lists are usually printed in. */
+  sort?: SpellSort;
+}
+
+export const SPELL_SORTS = ['name', 'level', 'school', 'castingTime'] as const;
+export type SpellSort = (typeof SPELL_SORTS)[number];
+
+/** Rough length of one unit of casting time, in seconds, so faster spells sort first. */
+const CASTING_UNITS: [RegExp, number][] = [
+  [/^reactions?\b/, 0.1],
+  [/^bonus\s+actions?\b/, 0.5],
+  [/^actions?\b/, 1],
+  [/^rounds?\b/, 6],
+  [/^min(ute)?s?\b/, 60],
+  [/^h(ou)?rs?\b/, 3600],
+  [/^days?\b/, 86400],
+];
+
+/**
+ * A sortable number for a casting time like "1 bonus action", "10 minutes" or "1 reaction, which
+ * you take when…". Reactions come first, then bonus actions, actions, minutes and hours. Anything
+ * unrecognised (blank, "special") sorts last.
+ */
+export function castingTimeRank(castingTime: string): number {
+  const m = /^\s*(\d+(?:\.\d+)?)?\s*(.*)$/s.exec(castingTime.toLowerCase())!;
+  const count = m[1] ? Number(m[1]) : 1;
+  const rest = (m[2] ?? '').trim();
+  for (const [re, seconds] of CASTING_UNITS) if (re.test(rest)) return count * seconds;
+  return Infinity;
 }
 
 export function filterSpells(list: readonly Spell[], f: SpellFilter = {}): Spell[] {
@@ -73,7 +102,30 @@ export function filterSpells(list: readonly Spell[], f: SpellFilter = {}): Spell
         (level === null || s.level === level) &&
         (!school || s.school.trim().toLowerCase() === school),
     )
-    .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+    .sort(spellComparator(f.sort));
+}
+
+function spellComparator(sort: SpellSort = 'level'): (a: Spell, b: Spell) => number {
+  const byName = (a: Spell, b: Spell) => a.name.localeCompare(b.name);
+  const byLevel = (a: Spell, b: Spell) => a.level - b.level;
+  const schoolOf = (s: Spell) => s.school.trim().toLowerCase();
+  switch (sort) {
+    case 'name':
+      return byName;
+    case 'school':
+      // Spells with no school go last rather than first.
+      return (a, b) =>
+        Number(!schoolOf(a)) - Number(!schoolOf(b)) || schoolOf(a).localeCompare(schoolOf(b)) || byLevel(a, b) || byName(a, b);
+    case 'castingTime': {
+      return (a, b) => {
+        const ra = castingTimeRank(a.castingTime);
+        const rb = castingTimeRank(b.castingTime);
+        return (ra === rb ? 0 : ra < rb ? -1 : 1) || byLevel(a, b) || byName(a, b);
+      };
+    }
+    default:
+      return (a, b) => byLevel(a, b) || byName(a, b);
+  }
 }
 
 export function spellSchools(list: readonly Spell[]): string[] {

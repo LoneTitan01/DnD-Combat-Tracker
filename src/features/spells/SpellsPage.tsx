@@ -4,11 +4,19 @@ import { Link, useNavigate } from 'react-router';
 import { Button, Card, PageHeader, Select, TextInput } from '../../components/ui';
 import { useUrlFilters } from '../../components/useUrlFilters';
 import { db } from '../../db';
-import { filterSpells, spellLevelLabel, spellSchools } from '../../logic';
+import { filterSpells, SPELL_SORTS, spellLevelLabel, spellSchools, type SpellSort } from '../../logic';
 import { confirmAndDeleteSpell, describeSpellImport, downloadSpells, importSpellFile } from './actions';
 import { SpellMention } from './SpellMention';
 
 const LEVELS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+const SORT_LABELS: Record<SpellSort, string> = {
+  level: 'Sort by level',
+  name: 'Sort by name',
+  school: 'Sort by school',
+  castingTime: 'Sort by casting time',
+};
+const asSort = (v: string | null): SpellSort => (SPELL_SORTS.includes(v as SpellSort) ? (v as SpellSort) : 'level');
 
 function Tag({ children, title }: { children: string; title: string }) {
   return (
@@ -25,7 +33,8 @@ export function SpellsPage() {
   const query = params.get('q') ?? '';
   const level = params.get('level') ?? '';
   const school = params.get('school') ?? '';
-  const shown = useMemo(() => filterSpells(all ?? [], { query, level, school }), [all, query, level, school]);
+  const sort = asSort(params.get('sort'));
+  const shown = useMemo(() => filterSpells(all ?? [], { query, level, school, sort }), [all, query, level, school, sort]);
   const schools = useMemo(() => spellSchools(all ?? []), [all]);
   const filtered = !!(query || level || school);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -105,6 +114,13 @@ export function SpellsPage() {
           {schools.map((s) => (
             <option key={s} value={s} className="capitalize">
               {s}
+            </option>
+          ))}
+        </Select>
+        <Select aria-label="Sort" value={sort} onChange={(e) => setFilter('sort', asSort(e.target.value) === 'level' ? '' : e.target.value)}>
+          {(['level', 'name', 'school', 'castingTime'] as const).map((s) => (
+            <option key={s} value={s}>
+              {SORT_LABELS[s]}
             </option>
           ))}
         </Select>

@@ -4,7 +4,10 @@ import { Link, useNavigate } from 'react-router';
 import { Button, Card, PageHeader, Select, TextInput } from '../../components/ui';
 import { useUrlFilters } from '../../components/useUrlFilters';
 import { db } from '../../db';
-import { CR_VALUES, creatureTypes, filterCreatures, formatHitDice, type CreatureFilter } from '../../logic';
+import { CR_VALUES, CREATURE_SORTS, creatureTypes, filterCreatures, formatHitDice, type CreatureFilter, type CreatureSort } from '../../logic';
+
+const SORT_LABELS: Record<CreatureSort, string> = { name: 'Sort by name', type: 'Sort by type', cr: 'Sort by CR' };
+const asSort = (v: string | null): CreatureSort => (CREATURE_SORTS.includes(v as CreatureSort) ? (v as CreatureSort) : 'name');
 import { confirmAndDelete, duplicateAndSave } from './actions';
 import { describeImport, downloadBestiary, importBestiaryFile } from './backup';
 
@@ -18,7 +21,7 @@ export function BestiaryPage() {
     type: params.get('type') ?? '',
     crMin: params.get('crMin') ?? '',
     crMax: params.get('crMax') ?? '',
-    sort: params.get('sort') === 'cr' ? 'cr' : 'name',
+    sort: asSort(params.get('sort')),
   };
 
   const { query, type, crMin, crMax, sort } = filter;
@@ -116,9 +119,12 @@ export function BestiaryPage() {
             ))}
           </Select>
         </div>
-        <Select aria-label="Sort" value={filter.sort} onChange={(e) => setFilter('sort', e.target.value === 'cr' ? 'cr' : '')}>
-          <option value="name">Sort by name</option>
-          <option value="cr">Sort by CR</option>
+        <Select aria-label="Sort" value={filter.sort} onChange={(e) => setFilter('sort', asSort(e.target.value) === 'name' ? '' : e.target.value)}>
+          {CREATURE_SORTS.map((s) => (
+            <option key={s} value={s}>
+              {SORT_LABELS[s]}
+            </option>
+          ))}
         </Select>
         {filtered && (
           <Button variant="ghost" onClick={clearFilters}>
