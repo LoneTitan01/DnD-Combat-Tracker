@@ -149,7 +149,7 @@ function Joined({ code, onLeave }: { code: string; onLeave: () => void }) {
         </div>
         {view?.table.status === 'active' && (
           <p className="text-right text-sm text-stone-400">
-            Round <span className="block text-2xl font-bold tabular-nums text-white" aria-label="Round">{view.round}</span>
+            Round <span className="block text-2xl font-bold tabular-nums text-stone-50" aria-label="Round">{view.round}</span>
           </p>
         )}
       </header>
@@ -239,7 +239,7 @@ function CombatView({ view, me, send }: { view: RemoteView; me: RemotePlayer | n
           ) : (
             <>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">Now</p>
-              <p className={`font-display text-3xl font-bold ${nameColor(t.current)}`}>
+              <p className={`font-display text-3xl font-bold ${nameColor(t.current, 'text-stone-50')}`}>
                 {names(t.current)}
               </p>
             </>
@@ -248,7 +248,7 @@ function CombatView({ view, me, send }: { view: RemoteView; me: RemotePlayer | n
             <p className="mt-2 text-stone-300" aria-label="Up next">
               <span className="mr-2 text-xs font-semibold uppercase tracking-[0.2em] text-stone-400">Up next</span>
               {nextUp ? <strong className="text-amber-300">You{t.upNext.names.length > 1 ? ` and ${t.upNext.names.filter((n) => n !== me?.name).join(', ')}` : ''}</strong> : (
-                <span className={nameColor(t.upNext)}>{names(t.upNext)}</span>
+                <span className={nameColor(t.upNext, 'text-stone-50')}>{names(t.upNext)}</span>
               )}
               {t.upNext.newRound && <span className="ml-2 text-xs text-stone-500">(round {view.round + 1})</span>}
             </p>
