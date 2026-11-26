@@ -13,13 +13,14 @@ function CampaignCard({ campaign, current, only, onSelect }: { campaign: Campaig
   const [description, setDescription] = useState(campaign.description);
   const counts = useLiveQuery(async () => {
     const id = campaign.id;
-    const [players, locations, encounters, combats] = await Promise.all([
+    const [players, locations, npcs, encounters, combats] = await Promise.all([
       db.players.filter((r) => campaignOf(r) === id).count(),
       db.locations.filter((r) => campaignOf(r) === id).count(),
+      db.npcs.filter((r) => campaignOf(r) === id).count(),
       db.encounters.filter((r) => campaignOf(r) === id).count(),
       db.combats.filter((r) => campaignOf(r) === id).count(),
     ]);
-    return { players, locations, encounters, combats };
+    return { players, locations, npcs, encounters, combats };
   }, [campaign.id]);
 
   const commit = () => {
@@ -31,7 +32,7 @@ function CampaignCard({ campaign, current, only, onSelect }: { campaign: Campaig
 
   const remove = async () => {
     const c = await campaignContents(campaign.id);
-    const what = [plural(c.players.length, 'player'), plural(c.locations.length, 'location'), plural(c.encounters.length, 'encounter'), plural(c.combats.length, 'combat')];
+    const what = [plural(c.players.length, 'player'), plural(c.locations.length, 'location'), plural(c.npcs.length, 'NPC'), plural(c.encounters.length, 'encounter'), plural(c.combats.length, 'combat')];
     if (!confirm(`Delete the campaign "${campaign.name}" with its ${what.join(', ')}? Stat blocks in the bestiary are kept.`)) return;
     await deleteCampaign(campaign.id);
   };
@@ -59,7 +60,7 @@ function CampaignCard({ campaign, current, only, onSelect }: { campaign: Campaig
       />
       <div className="flex flex-wrap items-center gap-1">
         <span className="mr-auto text-xs text-stone-500">
-          {counts ? `${plural(counts.players, 'player')} · ${plural(counts.locations, 'location')} · ${plural(counts.encounters, 'encounter')} · ${plural(counts.combats, 'combat')}` : ' '}
+          {counts ? `${plural(counts.players, 'player')} · ${plural(counts.locations, 'location')} · ${plural(counts.npcs, 'NPC')} · ${plural(counts.encounters, 'encounter')} · ${plural(counts.combats, 'combat')}` : ' '}
         </span>
         {!current && (
           <Button variant="primary" onClick={onSelect}>
@@ -98,7 +99,7 @@ export function CampaignsPage() {
     <>
       <PageHeader title="Campaigns" />
       <p className="mb-4 max-w-2xl text-sm text-stone-400">
-        Each campaign has its own party, locations, encounters and combats. The bestiary is shared by all of them. The campaign
+        Each campaign has its own party, locations, NPCs, encounters and combats. The bestiary is shared by all of them. The campaign
         you pick here is the one every page shows.
       </p>
 

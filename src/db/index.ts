@@ -3,6 +3,8 @@ import { campaignOf, defaultCampaign, inCampaign, newCampaign } from '../logic/c
 import { normalizeConditions } from '../logic/conditions';
 import { normalizeCreature } from '../logic/creature';
 import { planLocationDelete, planLocationSave } from '../logic/locations';
+import { newId } from '../logic/ids';
+import { npcsFromLegacyLocations } from '../logic/npcs';
 import { normalizeSpell } from '../logic/spells';
 import { mergeSyncData, sameSyncData, stampOf, tombstoneKey } from '../logic/sync';
 import {
@@ -14,6 +16,7 @@ import {
   type Encounter,
   type ID,
   type Location,
+  type Npc,
   type Player,
   type Spell,
   type SyncData,
@@ -33,6 +36,7 @@ export class TrackerDB extends Dexie {
   spells!: EntityTable<Spell, 'id'>;
   players!: EntityTable<Player, 'id'>;
   locations!: EntityTable<Location, 'id'>;
+  npcs!: EntityTable<Npc, 'id'>;
   encounters!: EntityTable<Encounter, 'id'>;
   combats!: EntityTable<Combat, 'id'>;
   deletions!: EntityTable<StoredTombstone, 'key'>;
@@ -83,6 +87,19 @@ export class TrackerDB extends Dexie {
     this.version(5).stores({ spells: 'id, name, level, updatedAt' });
     // v6: locations, kept per campaign and nested through parentId.
     this.version(6).stores({ locations: 'id, campaignId, parentId, name' });
+    // v7: NPCs get their own table, each linked to the location they live in. The names locations
+    // listed become NPC records there. Locations keep their stamp: the old list is just dropped.
+    this.version(7)
+      .stores({ npcs: 'id, campaignId, locationId, name' })
+      .upgrade(async (tx) => {
+        const locations = await tx.table('locations').toArray();
+        const npcs = npcsFromLegacyLocations(locations);
+        if (npcs.length) await tx.table('npcs').bulkPut(npcs);
+        await tx
+          .table('locations')
+          .toCollection()
+          .modify((l: Location & { npcs?: unknown }) => void delete l.npcs);
+      });
   }
 }
 
@@ -140,23 +157,25 @@ export async function ensureCampaign(database: TrackerDB = db): Promise<void> {
 export interface CampaignContents {
   players: Player[];
   locations: Location[];
+  npcs: Npc[];
   encounters: Encounter[];
   combats: Combat[];
 }
 
 export async function campaignContents(id: ID, database: TrackerDB = db): Promise<CampaignContents> {
-  const [players, locations, encounters, combats] = await Promise.all([
+  const [players, locations, npcs, encounters, combats] = await Promise.all([
     database.players.filter(inCampaign(id)).toArray(),
     database.locations.filter(inCampaign(id)).toArray(),
+    database.npcs.filter(inCampaign(id)).toArray(),
     database.encounters.filter(inCampaign(id)).toArray(),
     database.combats.filter(inCampaign(id)).toArray(),
   ]);
-  return { players, locations, encounters, combats };
+  return { players, locations, npcs, encounters, combats };
 }
 
-/** Deletes a campaign with its players, locations, encounters and combats. Stat blocks are shared and stay. */
+/** Deletes a campaign with its players, locations, NPCs, encounters and combats. Stat blocks are shared and stay. */
 export async function deleteCampaign(id: ID, database: TrackerDB = db): Promise<void> {
-  const tables = [database.campaigns, database.players, database.locations, database.encounters, database.combats, database.deletions];
+  const tables = [database.campaigns, database.players, database.locations, database.npcs, database.encounters, database.combats, database.deletions];
   await database.transaction('rw', tables, async () => {
     const contents = await campaignContents(id, database);
     const deletedAt = Date.now();
@@ -164,6 +183,7 @@ export async function deleteCampaign(id: ID, database: TrackerDB = db): Promise<
       { table: 'campaigns', id, deletedAt },
       ...contents.players.map((r) => ({ table: 'players' as const, id: r.id, deletedAt })),
       ...contents.locations.map((r) => ({ table: 'locations' as const, id: r.id, deletedAt })),
+      ...contents.npcs.map((r) => ({ table: 'npcs' as const, id: r.id, deletedAt })),
       ...contents.encounters.map((r) => ({ table: 'encounters' as const, id: r.id, deletedAt })),
       ...contents.combats.map((r) => ({ table: 'combats' as const, id: r.id, deletedAt })),
     ];
@@ -319,18 +339,68 @@ export async function saveLocation(loc: Location, childIds: readonly ID[], datab
   changed();
 }
 
-/** Deletes a location. The places inside it move up to its parent; sibling links to it are dropped. */
+/**
+ * Deletes a location. The places inside it and the NPCs living there move up to its parent; sibling
+ * links to it are dropped.
+ */
 export async function deleteLocation(id: ID, database: TrackerDB = db): Promise<void> {
-  await database.transaction('rw', database.locations, database.deletions, async () => {
+  await database.transaction('rw', database.locations, database.npcs, database.deletions, async () => {
     const gone = await database.locations.get(id);
     if (gone) {
       const all = await database.locations.filter(inCampaign(gone.campaignId)).toArray();
       const now = Date.now();
       await database.locations.bulkPut(planLocationDelete(all, id).map((l) => ({ ...l, updatedAt: now })));
+      const residents = await database.npcs.where('locationId').equals(id).toArray();
+      await database.npcs.bulkPut(residents.map((n) => ({ ...withLocation(n, gone.parentId), updatedAt: now })));
     }
     await database.locations.delete(id);
     const t: Tombstone = { table: 'locations', id, deletedAt: Date.now() };
     await database.deletions.put({ ...t, key: tombstoneKey(t) });
+  });
+  changed();
+}
+
+// ---------- NPCs ----------
+
+function withLocation(npc: Npc, locationId: ID | undefined): Npc {
+  const { locationId: _old, ...rest } = npc;
+  return locationId ? { ...rest, locationId } : rest;
+}
+
+export async function saveNpc(n: Npc, database: TrackerDB = db): Promise<void> {
+  await database.npcs.put({ ...withLocation(n, n.locationId), updatedAt: Date.now() });
+  changed();
+}
+
+export async function deleteNpc(id: ID, database: TrackerDB = db): Promise<void> {
+  await deleteWithTombstone(database, 'npcs', id);
+}
+
+/**
+ * Makes these the NPCs living at a location: the listed ones move here (from wherever they lived),
+ * NPCs who lived here but aren't listed now have no location, and new names become new NPCs here.
+ */
+export async function setLocationNpcs(
+  locationId: ID,
+  campaignId: ID,
+  npcIds: readonly ID[],
+  newNames: readonly string[],
+  database: TrackerDB = db,
+): Promise<void> {
+  await database.transaction('rw', database.npcs, async () => {
+    const all = await database.npcs.filter(inCampaign(campaignId)).toArray();
+    const wanted = new Set(npcIds);
+    const now = Date.now();
+    const puts: Npc[] = [];
+    for (const n of all) {
+      if (wanted.has(n.id) && n.locationId !== locationId) puts.push(withLocation(n, locationId));
+      else if (!wanted.has(n.id) && n.locationId === locationId) puts.push(withLocation(n, undefined));
+    }
+    for (const raw of newNames) {
+      const name = raw.trim();
+      if (name) puts.push({ id: newId(), campaignId, name, locationId });
+    }
+    if (puts.length) await database.npcs.bulkPut(puts.map((n) => ({ ...n, updatedAt: now })));
   });
   changed();
 }
@@ -449,17 +519,18 @@ export async function encountersUsingCreature(id: ID, database: TrackerDB = db):
 
 /** Everything sync covers, as stored on this device. */
 export async function localSyncData(database: TrackerDB = db): Promise<SyncData> {
-  const [campaigns, creatures, spells, players, locations, encounters, combats, deletions] = await Promise.all([
+  const [campaigns, creatures, spells, players, locations, npcs, encounters, combats, deletions] = await Promise.all([
     database.campaigns.toArray(),
     database.creatures.toArray(),
     database.spells.toArray(),
     database.players.toArray(),
     database.locations.toArray(),
+    database.npcs.toArray(),
     database.encounters.toArray(),
     database.combats.toArray(),
     database.deletions.toArray(),
   ]);
-  return { campaigns, creatures, spells, players, locations, encounters, combats, deletions: deletions.map(({ key: _key, ...t }) => t) };
+  return { campaigns, creatures, spells, players, locations, npcs, encounters, combats, deletions: deletions.map(({ key: _key, ...t }) => t) };
 }
 
 export interface MergeResult {

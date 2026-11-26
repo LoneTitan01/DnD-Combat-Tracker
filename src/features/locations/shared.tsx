@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Link } from 'react-router';
 import { db } from '../../db';
 import { inCampaign } from '../../logic';
-import type { ID, Location } from '../../models';
+import type { ID, Location, Npc } from '../../models';
 import { useCampaign } from '../campaigns/useCampaign';
 
 /** The current campaign's locations. Undefined while loading. */
@@ -13,6 +13,15 @@ export function useLocations(): { locations: Location[] | undefined; campaignId:
     [campaign?.id],
   );
   return { locations, campaignId: campaign?.id };
+}
+
+/** The current campaign's NPCs, by name. Undefined while loading. */
+export function useNpcs(): Npc[] | undefined {
+  const { campaign } = useCampaign();
+  return useLiveQuery(
+    async () => (campaign ? (await db.npcs.orderBy('name').toArray()).filter(inCampaign(campaign.id)) : undefined),
+    [campaign?.id],
+  );
 }
 
 export const locationPath = (id: ID) => `/locations/${id}`;

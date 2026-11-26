@@ -19,7 +19,6 @@ const loc = (id: string, name: string, patch: Partial<Location> = {}): Location 
   name,
   siblingIds: [],
   notes: '',
-  npcs: [],
   createdAt: 0,
   updatedAt: 0,
   ...patch,
@@ -28,7 +27,7 @@ const loc = (id: string, name: string, patch: Partial<Location> = {}): Location 
 // Sword Coast › Leilon › (Aubrey's, Inn); Neverwinter is top-level and linked to Leilon.
 const coast = loc('coast', 'Sword Coast');
 const leilon = loc('leilon', 'Leilon', { parentId: 'coast', siblingIds: ['nw'] });
-const shop = loc('shop', "Aubrey's Peculiarities Shoppe", { parentId: 'leilon', npcs: ['Aubrey'] });
+const shop = loc('shop', "Aubrey's Peculiarities Shoppe", { parentId: 'leilon' });
 const inn = loc('inn', 'Inn', { parentId: 'leilon', notes: 'Rooms upstairs' });
 const nw = loc('nw', 'Neverwinter', { siblingIds: ['leilon'] });
 const all = [coast, leilon, shop, inn, nw];
@@ -79,15 +78,16 @@ describe('siblingsOf', () => {
 describe('filterLocations', () => {
   it('matches names, notes and NPCs', () => {
     expect(names(filterLocations(all, 'aubrey'))).toEqual(["Aubrey's Peculiarities Shoppe"]);
+    const npcs = [{ name: 'Bo', locationId: 'inn' }, { name: 'Bob', locationId: undefined }];
+    expect(names(filterLocations(all, 'bo', npcs))).toEqual(['Inn']);
     expect(names(filterLocations(all, 'upstairs'))).toEqual(['Inn']);
   });
 });
 
 describe('planLocationSave', () => {
   it('cleans the location', () => {
-    expect(cleanLocation({ ...shop, name: ' Shop ', npcs: ['Aubrey', ' aubrey ', '', 'Bo'], siblingIds: ['inn', 'inn', 'shop'] })).toMatchObject({
+    expect(cleanLocation({ ...shop, name: ' Shop ', siblingIds: ['inn', 'inn', 'shop'] })).toMatchObject({
       name: 'Shop',
-      npcs: ['Aubrey', 'Bo'],
       siblingIds: ['inn'],
     });
   });
