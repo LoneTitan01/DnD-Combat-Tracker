@@ -119,7 +119,7 @@ function CreatureKind({ kind, className }: { kind: string | null | undefined; cl
 export function TableScreen({ view }: { view: TableView }) {
   if (view.status !== 'active') {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-black p-8 text-center text-white">
+      <div data-theme="tavern" className="flex min-h-dvh items-center justify-center bg-black p-8 text-center text-white">
         <p className="font-display text-[clamp(3rem,9vw,7rem)] font-bold">
           {view.status === 'waiting' ? 'Waiting to start' : 'Combat over'}
         </p>
@@ -129,7 +129,7 @@ export function TableScreen({ view }: { view: TableView }) {
 
   const { round, current, upNext } = view;
   return (
-    <div className="flex min-h-dvh flex-col bg-black text-white">
+    <div data-theme="tavern" className="flex min-h-dvh flex-col bg-black text-white">
       <header className="px-8 pt-6 text-right text-[clamp(1.5rem,3vw,2.5rem)] font-semibold tracking-wide text-stone-300">
         Round <span className="tabular-nums text-white">{round}</span>
       </header>

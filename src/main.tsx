@@ -4,6 +4,7 @@ import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import { requestPersistentStorage } from './db';
 import './index.css';
+import './features/settings/theme';
 
 registerSW({ immediate: true });
 void requestPersistentStorage();
