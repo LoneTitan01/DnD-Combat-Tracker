@@ -231,7 +231,7 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
             </Card>
           ))}
         </div>
-        <div className="fixed inset-x-0 bottom-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">
+        <div className="fixed bottom-0 left-[var(--nav-width,0px)] right-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-end gap-3 px-4 py-3">
             <span className="mr-auto text-xs text-stone-500">{filled.length ? `${plural(filled.length)} pasted` : 'Nothing pasted yet'}</span>
             <Button variant="primary" disabled={!filled.length} onClick={readAll}>
@@ -345,7 +345,7 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
             )}
           </section>
           <aside className={current.status === 'pending' ? 'hidden lg:block' : ''}>
-            <div className="sticky top-20 max-h-[calc(100dvh-10rem)] overflow-y-auto">
+            <div className="sticky top-6 max-h-[calc(100dvh-3rem)] overflow-y-auto">
               <p className="mb-2 text-xs uppercase tracking-wider text-stone-500">Preview</p>
               {props.preview(current.value)}
             </div>
@@ -353,7 +353,7 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
         </div>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">
+      <div className="fixed bottom-0 left-[var(--nav-width,0px)] right-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
           <div className="flex items-center gap-1">
             <Button variant="ghost" className="text-lg leading-none" aria-label="Previous" disabled={items.length < 2} onClick={() => go(index - 1)}>

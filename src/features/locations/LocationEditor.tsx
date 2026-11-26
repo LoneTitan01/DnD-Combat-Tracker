@@ -289,7 +289,7 @@ export function LocationEditor() {
           </Field>
         </Card>
 
-        <div className="fixed inset-x-0 bottom-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">
+        <div className="fixed bottom-0 left-[var(--nav-width,0px)] right-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-end gap-3 px-4 py-3">
             {showErrors && errors.length > 0 && (
               <ul className="mr-auto text-xs text-red-400">
