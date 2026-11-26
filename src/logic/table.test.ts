@@ -94,21 +94,29 @@ describe('tableView kind of creature', () => {
     return v.status === 'active' ? v.current.creatures : undefined;
   };
 
-  it("shows the stat block's name, looking it up for combatants added before it was snapshotted", () => {
-    expect(current(makeCombat([boar()]))).toEqual(['Boar']);
-    const old = makeCombatant({ tokenName: 'Grunt', templateId: 'tpl-orc' });
+  it('shows nothing until the DM chooses to, including on older combats', () => {
+    expect(current(makeCombat([boar()]))).toEqual([null]);
+    const legacy = makeCombatant({ tokenName: 'Tusker', creatureName: 'Boar', fakeName: 'Pig', showFakeName: true });
+    expect(current(makeCombat([legacy]))).toEqual(['Pig']);
+  });
+
+  it("shows the stat block's name once revealed, looking it up for combatants added before it was snapshotted", () => {
+    const b = boar();
+    expect(current(setCreatureDisplay(makeCombat([b]), b.id, { creatureShown: 'real' }))).toEqual(['Boar']);
+    const old = makeCombatant({ tokenName: 'Grunt', templateId: 'tpl-orc', creatureShown: 'real' });
     expect(current(makeCombat([old]))).toEqual([null]);
     expect(current(makeCombat([old]), new Map([['tpl-orc', { name: 'Orc' }]]))).toEqual(['Orc']);
   });
 
-  it('shows the fake only while the toggle is on, and nothing for a blank fake', () => {
+  it('shows the fake only while chosen, and nothing for a blank fake', () => {
     const b = boar();
     let c = setCreatureDisplay(makeCombat([b]), b.id, { fakeName: 'Orc' });
-    expect(current(c)).toEqual(['Boar']);
-    c = setCreatureDisplay(c, b.id, { showFakeName: true });
+    expect(current(c)).toEqual([null]);
+    c = setCreatureDisplay(c, b.id, { creatureShown: 'fake' });
     expect(current(c)).toEqual(['Orc']);
     expect(current(setCreatureDisplay(c, b.id, { fakeName: '  ' }))).toEqual([null]);
-    expect(setCreatureDisplay(c, b.id, { showFakeName: true })).toBe(c);
+    expect(setCreatureDisplay(c, b.id, { creatureShown: 'fake' })).toBe(c);
+    expect(current(setCreatureDisplay(c, b.id, { creatureShown: 'hidden' }))).toEqual([null]);
   });
 
   it('never shows one for players', () => {

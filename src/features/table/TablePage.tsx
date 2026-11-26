@@ -77,7 +77,7 @@ function DemoTable() {
       conditions: [],
       xp: 0,
       abilityStates: [],
-      ...(i === 2 ? { creatureName: 'Goblin' } : i === 4 ? { creatureName: 'Hag', showFakeName: true, fakeName: 'Old woman' } : {}),
+      ...(i === 2 ? { creatureName: 'Goblin', creatureShown: 'real' as const } : i === 4 ? { creatureName: 'Hag', creatureShown: 'fake' as const, fakeName: 'Old woman' } : {}),
     })),
   }));
   useEffect(() => {
