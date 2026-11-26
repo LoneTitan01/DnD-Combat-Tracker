@@ -43,7 +43,7 @@ A local-first web app for preparing D&D 5e encounters and running them at the ta
 - **Combat log and undo:** every damage, heal, temp HP, ability use and recharge roll is logged. Each entry can be undone on its own, without rewinding the rest of the combat.
 - **XP tally** for defeated creatures. When every creature is down, the app offers to end the combat. An ended combat keeps a recap.
 - **Autosave:** every change is saved, and a "Saving… / All changes saved" indicator shows when it's done. Running combats can be resumed later from the Combats list.
-- **Keyboard shortcuts:** `N` next turn, `M` multi-target, `Esc` closes the panel. Shortcuts are ignored while typing, and can be changed under **Settings → Keyboard shortcuts** (saved per device).
+- **Keyboard shortcuts:** `N` next turn, `M` multi-target, `Esc` closes the panel. Shortcuts are ignored while typing, and can be changed under **Settings → Keyboard shortcuts** (saved per device, or shared between devices with **Settings → Sync → Sync keyboard shortcuts**).
 
 ### Player-facing screen
 - Open `#/table` in a second window on the same computer, for example on a TV. It shows the round, whose turn it is and an "Up Next" banner, updated live from the DM's screen.

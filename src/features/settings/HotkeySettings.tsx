@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Card } from '../../components/ui';
+import { useSyncState } from '../../sync/manager';
 import {
   DEFAULT_HOTKEYS,
   HOTKEY_ACTIONS,
@@ -23,6 +24,8 @@ export function Kbd({ k }: { k: string }) {
 /** The Keyboard shortcuts section of the Settings page. */
 export function HotkeySettings() {
   const hotkeys = useHotkeys();
+  const sync = useSyncState();
+  const syncing = sync.syncHotkeys && sync.phase !== 'off' && sync.phase !== 'unconfigured';
   const [recording, setRecording] = useState<HotkeyAction | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
@@ -75,7 +78,10 @@ export function HotkeySettings() {
       <Card className="flex flex-col gap-4">
         <p className="text-sm text-stone-400">
           Click <span className="text-stone-200">Change</span>, then press the key you want. Shortcuts are single keys and
-          are ignored while you’re typing in a box. They’re saved on this device only.
+          are ignored while you’re typing in a box.{' '}
+          {syncing
+            ? 'They sync to your other devices that have “Sync keyboard shortcuts” on.'
+            : 'They’re saved on this device only; turn on “Sync keyboard shortcuts” under Sync to share them.'}
         </p>
         {note && (
           <p className="rounded-md border border-amber-900 bg-amber-950/30 px-3 py-2 text-sm text-amber-200" role="status">

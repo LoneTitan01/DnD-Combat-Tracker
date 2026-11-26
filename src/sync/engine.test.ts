@@ -160,3 +160,35 @@ describe('database version 3', () => {
     expect(await upgraded.deletions.count()).toBe(0);
   });
 });
+
+describe('syncOnce with keyboard shortcuts', () => {
+  /** A device's shortcuts, kept in memory. */
+  const shortcuts = (keys: Record<string, string>, updatedAt: number) => {
+    const h = { current: { keys, updatedAt } };
+    return { h, sync: { local: () => h.current, apply: (x: typeof h.current) => (h.current = x) } };
+  };
+
+  it('the newest shortcuts win, and devices with it off leave them alone', async () => {
+    const remote = new MemoryRemote();
+    const laptop = shortcuts({ nextTurn: 't' }, 10);
+    await syncOnce(remote, device(), laptop.sync);
+    expect((await remote.load())?.hotkeys).toEqual({ keys: { nextTurn: 't' }, updatedAt: 10 });
+
+    // Tablet never changed its shortcuts: it takes the laptop's.
+    const tablet = shortcuts({ nextTurn: 'n' }, 0);
+    expect(await syncOnce(remote, device(), tablet.sync)).toEqual({ pulled: true, pushed: false });
+    expect(tablet.h.current).toEqual({ keys: { nextTurn: 't' }, updatedAt: 10 });
+
+    // A device with shortcut sync off re-uploads its data but keeps the shared shortcuts.
+    const phone = device();
+    await savePlayer({ id: 'p1', name: 'Aria', initiativeBonus: 0 }, phone);
+    expect((await syncOnce(remote, phone)).pushed).toBe(true);
+    expect((await remote.load())?.hotkeys).toEqual({ keys: { nextTurn: 't' }, updatedAt: 10 });
+
+    // A later change on the tablet reaches the laptop.
+    tablet.h.current = { keys: { nextTurn: 'x' }, updatedAt: 20 };
+    expect((await syncOnce(remote, device(), tablet.sync)).pushed).toBe(true);
+    await syncOnce(remote, device(), laptop.sync);
+    expect(laptop.h.current).toEqual({ keys: { nextTurn: 'x' }, updatedAt: 20 });
+  });
+});

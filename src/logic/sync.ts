@@ -1,4 +1,4 @@
-import { SYNC_TABLES, type ID, type SyncData, type SyncFile, type SyncTable, type Tombstone } from '../models';
+import { SYNC_TABLES, type ID, type SyncData, type SyncFile, type SyncTable, type SyncedHotkeys, type Tombstone } from '../models';
 
 /*
  * Sync merges two copies of the whole database (this device and the file in Google Drive):
@@ -70,7 +70,9 @@ export function parseSyncFile(raw: unknown): SyncFile {
     throw new Error('The data in Google Drive was saved by a newer version of the app. Reload this page to update it.');
   }
   const list = <T,>(x: T[] | undefined): T[] => (Array.isArray(x) ? x : []);
+  const hotkeys = parseSyncedHotkeys(f.hotkeys);
   return {
+    ...(hotkeys ? { hotkeys } : {}),
     app: 'dm-combat-tracker',
     format: 1,
     savedAt: typeof f.savedAt === 'number' ? f.savedAt : 0,
@@ -84,4 +86,12 @@ export function parseSyncFile(raw: unknown): SyncFile {
     combats: list(f.combats),
     deletions: list(f.deletions),
   };
+}
+
+/** The shortcuts in a sync file, if they're usable: string keys only, with a numeric stamp. */
+export function parseSyncedHotkeys(raw: unknown): SyncedHotkeys | undefined {
+  const h = raw as Partial<SyncedHotkeys> | null | undefined;
+  if (!h || typeof h !== 'object' || typeof h.updatedAt !== 'number' || !h.keys || typeof h.keys !== 'object') return undefined;
+  const keys = Object.fromEntries(Object.entries(h.keys).filter(([, v]) => typeof v === 'string')) as Record<string, string>;
+  return { keys, updatedAt: h.updatedAt };
 }

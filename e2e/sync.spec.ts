@@ -154,3 +154,44 @@ test('sync through a Google account: two devices merge, deletions spread, reconn
   await laptopCtx.close();
   await tabletCtx.close();
 });
+
+test('keyboard shortcuts sync only between devices that turn it on', async ({ browser }) => {
+  const drive: FakeDrive = { body: null, exists: false, expired: false, uploads: 0 };
+  const open = async () => {
+    const ctx = await browser.newContext();
+    await fakeGoogle(ctx, drive);
+    const page = await ctx.newPage();
+    return { ctx, page };
+  };
+  const toggle = (page: Page) => page.getByRole('checkbox', { name: /Sync keyboard shortcuts/ });
+  const nextTurnKey = (page: Page) => page.getByLabel('Shortcut for Next turn', { exact: true });
+
+  // Laptop: shortcut sync on, Next turn → T.
+  const laptop = await open();
+  await connect(laptop.page);
+  await expect(toggle(laptop.page)).not.toBeChecked();
+  await toggle(laptop.page).check();
+  await laptop.page.getByRole('button', { name: 'Change shortcut for Next turn' }).click();
+  await laptop.page.keyboard.press('t');
+  await expect(nextTurnKey(laptop.page)).toHaveText('T');
+  await syncNow(laptop.page);
+
+  // Tablet with it off keeps its own keys.
+  const tablet = await open();
+  await connect(tablet.page);
+  await expect(nextTurnKey(tablet.page)).toHaveText('N');
+
+  // Turning it on brings in the laptop's.
+  await toggle(tablet.page).check();
+  await expect(nextTurnKey(tablet.page)).toHaveText('T');
+  await expect(tablet.page.getByText('They sync to your other devices')).toBeVisible();
+
+  // The setting survives a reload and disconnecting.
+  await tablet.page.reload();
+  await expect(toggle(tablet.page)).toBeChecked();
+  await tablet.page.getByRole('button', { name: 'Disconnect' }).click();
+  await expect(toggle(tablet.page)).toBeChecked();
+
+  await laptop.ctx.close();
+  await tablet.ctx.close();
+});

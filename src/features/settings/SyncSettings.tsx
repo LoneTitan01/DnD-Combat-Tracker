@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { Button, Card } from '../../components/ui';
-import { connectSync, deleteCloudCopy, disconnectSync, syncNow, useSyncState, type SyncState } from '../../sync/manager';
+import { connectSync, deleteCloudCopy, disconnectSync, setSyncHotkeys, syncNow, useSyncState, type SyncState } from '../../sync/manager';
 
 /** "just now", "3 min ago", "2 h ago", or a date. */
 export function timeAgo(at: number, now = Date.now()): string {
@@ -145,6 +145,24 @@ export function SyncSettings() {
               Delete synced copy
             </Button>
           </div>
+        )}
+
+        {s.phase !== 'unconfigured' && (
+          <label className="flex items-start gap-3 border-t border-stone-800 pt-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-amber-500"
+              checked={s.syncHotkeys}
+              onChange={(e) => setSyncHotkeys(e.target.checked)}
+            />
+            <span>
+              <span className="text-stone-100">Sync keyboard shortcuts</span>
+              <span className="block text-stone-400">
+                Use the same shortcuts on every device that has this on. The most recent change wins. Off: this device keeps
+                its own shortcuts.
+              </span>
+            </span>
+          </label>
         )}
       </Card>
 
