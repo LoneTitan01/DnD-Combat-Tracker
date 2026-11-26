@@ -5,6 +5,7 @@ import { normalizeCreature } from '../logic/creature';
 import { planLocationDelete, planLocationSave } from '../logic/locations';
 import { newId } from '../logic/ids';
 import { npcsFromLegacyLocations } from '../logic/npcs';
+import { normalizeItem } from '../logic/items';
 import { normalizeSpell } from '../logic/spells';
 import { mergeSyncData, sameSyncData, stampOf, tombstoneKey } from '../logic/sync';
 import {
@@ -15,6 +16,7 @@ import {
   type CreatureTemplate,
   type Encounter,
   type ID,
+  type Item,
   type Location,
   type Npc,
   type Organization,
@@ -35,6 +37,7 @@ export class TrackerDB extends Dexie {
   campaigns!: EntityTable<Campaign, 'id'>;
   creatures!: EntityTable<CreatureTemplate, 'id'>;
   spells!: EntityTable<Spell, 'id'>;
+  items!: EntityTable<Item, 'id'>;
   players!: EntityTable<Player, 'id'>;
   locations!: EntityTable<Location, 'id'>;
   npcs!: EntityTable<Npc, 'id'>;
@@ -104,6 +107,8 @@ export class TrackerDB extends Dexie {
       });
     // v8: organizations NPCs can belong to. Membership lives on the NPC, indexed for finding members.
     this.version(8).stores({ organizations: 'id, campaignId, name', npcs: 'id, campaignId, locationId, name, *organizationIds' });
+    // v9: the item list (weapons, armor, tools and adventuring gear), shared by all campaigns.
+    this.version(9).stores({ items: 'id, name, category, updatedAt' });
   }
 }
 
@@ -306,6 +311,55 @@ export async function importSpells(data: unknown, database: TrackerDB = db): Pro
   return { ...r, skipped: list.length - valid.length };
 }
 
+// ---------- items ----------
+
+export async function saveItem(i: Item, database: TrackerDB = db): Promise<void> {
+  await database.items.put({ ...i, updatedAt: Date.now() });
+  changed();
+}
+
+export async function deleteItem(id: ID, database: TrackerDB = db): Promise<void> {
+  await deleteWithTombstone(database, 'items', id);
+}
+
+export async function exportItems(ids?: readonly ID[], database: TrackerDB = db): Promise<BackupFile> {
+  const items = ids
+    ? (await database.items.bulkGet([...ids])).filter((i): i is Item => !!i)
+    : await database.items.toArray();
+  return { app: 'dm-combat-tracker', version: 1, exportedAt: new Date().toISOString(), creatures: [], items };
+}
+
+/**
+ * Imports items from a backup file (its `items`), a bare array, an object with a `results` or
+ * `equipment` list (as public 5e APIs return), or a single item. Entries without a name are skipped.
+ * Imported items count as edited now, so sync treats them as the newest copy.
+ */
+export async function importItems(data: unknown, database: TrackerDB = db): Promise<ImportResult> {
+  const o = data as { items?: unknown; results?: unknown; equipment?: unknown } | null;
+  const list: unknown[] = Array.isArray(data)
+    ? data
+    : Array.isArray(o?.items)
+      ? o.items
+      : Array.isArray(o?.results)
+        ? o.results
+        : Array.isArray(o?.equipment)
+          ? o.equipment
+          : data && typeof data === 'object' && 'name' in data
+            ? [data]
+            : [];
+  if (list.length === 0) throw new Error('No items found in file.');
+  const now = Date.now();
+  const valid = list
+    .map(normalizeItem)
+    .filter((i): i is Item => i !== null)
+    .map((i) => ({ ...i, updatedAt: now }));
+  if (valid.length === 0) throw new Error('No items with a name found in file.');
+  const existing = (await database.items.bulkGet(valid.map((i) => i.id))).filter(Boolean).length;
+  await database.items.bulkPut(valid);
+  changed();
+  return { added: valid.length - existing, replaced: existing, skipped: list.length - valid.length };
+}
+
 // ---------- players ----------
 
 export async function savePlayer(p: Player, database: TrackerDB = db): Promise<void> {
@@ -479,6 +533,8 @@ export interface BackupFile {
   creatures: CreatureTemplate[];
   /** The spells the exported stat blocks link to (or the exported spell list). */
   spells?: Spell[];
+  /** The exported item list. */
+  items?: Item[];
   players?: Player[];
   encounters?: Encounter[];
 }
@@ -557,10 +613,11 @@ export async function encountersUsingCreature(id: ID, database: TrackerDB = db):
 
 /** Everything sync covers, as stored on this device. */
 export async function localSyncData(database: TrackerDB = db): Promise<SyncData> {
-  const [campaigns, creatures, spells, players, locations, npcs, organizations, encounters, combats, deletions] = await Promise.all([
+  const [campaigns, creatures, spells, items, players, locations, npcs, organizations, encounters, combats, deletions] = await Promise.all([
     database.campaigns.toArray(),
     database.creatures.toArray(),
     database.spells.toArray(),
+    database.items.toArray(),
     database.players.toArray(),
     database.locations.toArray(),
     database.npcs.toArray(),
@@ -569,7 +626,7 @@ export async function localSyncData(database: TrackerDB = db): Promise<SyncData>
     database.combats.toArray(),
     database.deletions.toArray(),
   ]);
-  return { campaigns, creatures, spells, players, locations, npcs, organizations, encounters, combats, deletions: deletions.map(({ key: _key, ...t }) => t) };
+  return { campaigns, creatures, spells, items, players, locations, npcs, organizations, encounters, combats, deletions: deletions.map(({ key: _key, ...t }) => t) };
 }
 
 export interface MergeResult {
