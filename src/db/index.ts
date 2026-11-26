@@ -17,6 +17,7 @@ import {
   type ID,
   type Location,
   type Npc,
+  type Organization,
   type Player,
   type Spell,
   type SyncData,
@@ -37,6 +38,7 @@ export class TrackerDB extends Dexie {
   players!: EntityTable<Player, 'id'>;
   locations!: EntityTable<Location, 'id'>;
   npcs!: EntityTable<Npc, 'id'>;
+  organizations!: EntityTable<Organization, 'id'>;
   encounters!: EntityTable<Encounter, 'id'>;
   combats!: EntityTable<Combat, 'id'>;
   deletions!: EntityTable<StoredTombstone, 'key'>;
@@ -100,6 +102,8 @@ export class TrackerDB extends Dexie {
           .toCollection()
           .modify((l: Location & { npcs?: unknown }) => void delete l.npcs);
       });
+    // v8: organizations NPCs can belong to. Membership lives on the NPC, indexed for finding members.
+    this.version(8).stores({ organizations: 'id, campaignId, name', npcs: 'id, campaignId, locationId, name, *organizationIds' });
   }
 }
 
@@ -158,24 +162,26 @@ export interface CampaignContents {
   players: Player[];
   locations: Location[];
   npcs: Npc[];
+  organizations: Organization[];
   encounters: Encounter[];
   combats: Combat[];
 }
 
 export async function campaignContents(id: ID, database: TrackerDB = db): Promise<CampaignContents> {
-  const [players, locations, npcs, encounters, combats] = await Promise.all([
+  const [players, locations, npcs, organizations, encounters, combats] = await Promise.all([
     database.players.filter(inCampaign(id)).toArray(),
     database.locations.filter(inCampaign(id)).toArray(),
     database.npcs.filter(inCampaign(id)).toArray(),
+    database.organizations.filter(inCampaign(id)).toArray(),
     database.encounters.filter(inCampaign(id)).toArray(),
     database.combats.filter(inCampaign(id)).toArray(),
   ]);
-  return { players, locations, npcs, encounters, combats };
+  return { players, locations, npcs, organizations, encounters, combats };
 }
 
-/** Deletes a campaign with its players, locations, NPCs, encounters and combats. Stat blocks are shared and stay. */
+/** Deletes a campaign with its players, locations, NPCs, organizations, encounters and combats. Stat blocks are shared and stay. */
 export async function deleteCampaign(id: ID, database: TrackerDB = db): Promise<void> {
-  const tables = [database.campaigns, database.players, database.locations, database.npcs, database.encounters, database.combats, database.deletions];
+  const tables = [database.campaigns, database.players, database.locations, database.npcs, database.organizations, database.encounters, database.combats, database.deletions];
   await database.transaction('rw', tables, async () => {
     const contents = await campaignContents(id, database);
     const deletedAt = Date.now();
@@ -184,6 +190,7 @@ export async function deleteCampaign(id: ID, database: TrackerDB = db): Promise<
       ...contents.players.map((r) => ({ table: 'players' as const, id: r.id, deletedAt })),
       ...contents.locations.map((r) => ({ table: 'locations' as const, id: r.id, deletedAt })),
       ...contents.npcs.map((r) => ({ table: 'npcs' as const, id: r.id, deletedAt })),
+      ...contents.organizations.map((r) => ({ table: 'organizations' as const, id: r.id, deletedAt })),
       ...contents.encounters.map((r) => ({ table: 'encounters' as const, id: r.id, deletedAt })),
       ...contents.combats.map((r) => ({ table: 'combats' as const, id: r.id, deletedAt })),
     ];
@@ -353,8 +360,15 @@ function withLocation(npc: Npc, locationId: ID | undefined): Npc {
   return locationId ? { ...rest, locationId } : rest;
 }
 
+/** The NPC in these organizations, dropping the field when there are none. */
+function withOrganizations(npc: Npc, ids: readonly ID[]): Npc {
+  const { organizationIds: _old, ...rest } = npc;
+  const unique = [...new Set(ids)];
+  return unique.length ? { ...rest, organizationIds: unique } : rest;
+}
+
 export async function saveNpc(n: Npc, database: TrackerDB = db): Promise<void> {
-  await database.npcs.put({ ...withLocation(n, n.locationId), updatedAt: Date.now() });
+  await database.npcs.put({ ...withOrganizations(withLocation(n, n.locationId), n.organizationIds ?? []), updatedAt: Date.now() });
   changed();
 }
 
@@ -385,6 +399,44 @@ export async function setLocationNpcs(
     for (const raw of newNames) {
       const name = raw.trim();
       if (name) puts.push({ id: newId(), campaignId, name, locationId });
+    }
+    if (puts.length) await database.npcs.bulkPut(puts.map((n) => ({ ...n, updatedAt: now })));
+  });
+  changed();
+}
+
+// ---------- organizations ----------
+
+export async function saveOrganization(o: Organization, database: TrackerDB = db): Promise<void> {
+  await database.organizations.put({ ...o, updatedAt: Date.now() });
+  changed();
+}
+
+/** Deletes an organization. Its members stay, just no longer in it. */
+export async function deleteOrganization(id: ID, database: TrackerDB = db): Promise<void> {
+  await database.transaction('rw', database.organizations, database.npcs, database.deletions, async () => {
+    const members = await database.npcs.where('organizationIds').equals(id).toArray();
+    const now = Date.now();
+    await database.npcs.bulkPut(members.map((n) => ({ ...withOrganizations(n, (n.organizationIds ?? []).filter((x) => x !== id)), updatedAt: now })));
+    await database.organizations.delete(id);
+    const t: Tombstone = { table: 'organizations', id, deletedAt: now };
+    await database.deletions.put({ ...t, key: tombstoneKey(t) });
+  });
+  changed();
+}
+
+/** Makes these NPCs (in the organization's campaign) its members: the listed ones join, the others leave. */
+export async function setOrganizationMembers(organizationId: ID, campaignId: ID, npcIds: readonly ID[], database: TrackerDB = db): Promise<void> {
+  await database.transaction('rw', database.npcs, async () => {
+    const all = await database.npcs.filter(inCampaign(campaignId)).toArray();
+    const wanted = new Set(npcIds);
+    const now = Date.now();
+    const puts: Npc[] = [];
+    for (const n of all) {
+      const ids = n.organizationIds ?? [];
+      const member = ids.includes(organizationId);
+      if (wanted.has(n.id) && !member) puts.push(withOrganizations(n, [...ids, organizationId]));
+      else if (!wanted.has(n.id) && member) puts.push(withOrganizations(n, ids.filter((x) => x !== organizationId)));
     }
     if (puts.length) await database.npcs.bulkPut(puts.map((n) => ({ ...n, updatedAt: now })));
   });
@@ -505,18 +557,19 @@ export async function encountersUsingCreature(id: ID, database: TrackerDB = db):
 
 /** Everything sync covers, as stored on this device. */
 export async function localSyncData(database: TrackerDB = db): Promise<SyncData> {
-  const [campaigns, creatures, spells, players, locations, npcs, encounters, combats, deletions] = await Promise.all([
+  const [campaigns, creatures, spells, players, locations, npcs, organizations, encounters, combats, deletions] = await Promise.all([
     database.campaigns.toArray(),
     database.creatures.toArray(),
     database.spells.toArray(),
     database.players.toArray(),
     database.locations.toArray(),
     database.npcs.toArray(),
+    database.organizations.toArray(),
     database.encounters.toArray(),
     database.combats.toArray(),
     database.deletions.toArray(),
   ]);
-  return { campaigns, creatures, spells, players, locations, npcs, encounters, combats, deletions: deletions.map(({ key: _key, ...t }) => t) };
+  return { campaigns, creatures, spells, players, locations, npcs, organizations, encounters, combats, deletions: deletions.map(({ key: _key, ...t }) => t) };
 }
 
 export interface MergeResult {

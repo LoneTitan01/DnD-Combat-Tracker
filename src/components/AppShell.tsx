@@ -15,6 +15,7 @@ import {
   PawIcon,
   SparklesIcon,
   SettingsIcon,
+  ShieldIcon,
   SwordsIcon,
   UserIcon,
   UsersIcon,
@@ -30,6 +31,7 @@ const NAV: { to: string; label: string; icon: ComponentType; end?: boolean }[] =
   { to: '/party', label: 'Party', icon: UsersIcon },
   { to: '/locations', label: 'Locations', icon: MapPinIcon },
   { to: '/npcs', label: 'NPCs', icon: UserIcon },
+  { to: '/organizations', label: 'Organizations', icon: ShieldIcon },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
 

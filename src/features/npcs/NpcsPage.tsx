@@ -3,9 +3,10 @@ import { Link } from 'react-router';
 import { Button, Card, Field, PageHeader, Select, TextArea, TextInput } from '../../components/ui';
 import { useUrlFilters } from '../../components/useUrlFilters';
 import { deleteNpc, saveNpc } from '../../db';
-import { filterNpcs, findNpcByName, newId, placeOptions } from '../../logic';
-import type { Npc } from '../../models';
+import { filterNpcs, findNpcByName, newId, organizationsOf, placeOptions } from '../../logic';
+import type { Npc, Organization } from '../../models';
 import { locationPath, useLocations, useNpcs } from '../locations/shared';
+import { OrganizationLink, OrganizationText, useOrganizations } from '../organizations/shared';
 
 type Place = { id: string; label: string };
 
@@ -23,10 +24,25 @@ function PlaceSelect({ value, places, onChange, label }: { value: string; places
   );
 }
 
-function NpcRow({ npc, places, duplicate, startOpen }: { npc: Npc; places: Place[]; duplicate: boolean; startOpen: boolean }) {
+function NpcRow({
+  npc,
+  places,
+  organizations,
+  duplicate,
+  startOpen,
+}: {
+  npc: Npc;
+  places: Place[];
+  organizations: Organization[];
+  duplicate: boolean;
+  startOpen: boolean;
+}) {
   const [name, setName] = useState(npc.name);
   const [notes, setNotes] = useState(npc.notes ?? '');
   const [open, setOpen] = useState(startOpen);
+  // Saved notes open as text (so organization names can be hovered); blank ones open straight into the editor.
+  const [editing, setEditing] = useState(false);
+  const groups = organizationsOf(organizations, npc);
   const home = places.find((p) => p.id === npc.locationId);
   const saved = (npc.notes ?? '').trim();
 
@@ -39,6 +55,7 @@ function NpcRow({ npc, places, duplicate, startOpen }: { npc: Npc; places: Place
 
   /** Commits on blur, so typing doesn't save on every keystroke. */
   const commitNotes = () => {
+    setEditing(false);
     if (notes !== (npc.notes ?? '')) void saveNpc({ ...npc, notes });
   };
 
@@ -55,7 +72,21 @@ function NpcRow({ npc, places, duplicate, startOpen }: { npc: Npc; places: Place
             className={`w-full min-w-32 ${duplicate ? 'border-amber-500' : ''}`}
           />
           {duplicate && <p className="mt-1 text-xs text-amber-400">Another NPC has this name.</p>}
-          {!open && saved && <p className="mt-1 max-w-xs truncate text-xs text-stone-500">{saved.split('\n')[0]}</p>}
+          {groups.length > 0 && (
+            <p className="mt-1 text-xs text-stone-400" aria-label={`Organizations of ${npc.name}`}>
+              {groups.map((o, i) => (
+                <span key={o.id}>
+                  {i > 0 && ', '}
+                  <OrganizationLink organization={o} />
+                </span>
+              ))}
+            </p>
+          )}
+          {!open && saved && (
+            <p className="mt-1 max-w-xs truncate text-xs text-stone-500">
+              <OrganizationText text={saved.split('\n')[0] ?? ''} organizations={organizations} />
+            </p>
+          )}
         </td>
         <td className="py-2 pr-2 align-top">
           <PlaceSelect
@@ -66,7 +97,15 @@ function NpcRow({ npc, places, duplicate, startOpen }: { npc: Npc; places: Place
           />
         </td>
         <td className="whitespace-nowrap py-2 text-right align-top">
-          <Button variant="ghost" aria-expanded={open} aria-label={`Notes for ${npc.name}`} onClick={() => setOpen(!open)}>
+          <Button
+            variant="ghost"
+            aria-expanded={open}
+            aria-label={`Notes for ${npc.name}`}
+            onClick={() => {
+              setOpen(!open);
+              setEditing(false);
+            }}
+          >
             {open ? 'Hide notes' : saved ? 'Notes' : 'Add notes'}
           </Button>
           {home && (
@@ -91,15 +130,37 @@ function NpcRow({ npc, places, duplicate, startOpen }: { npc: Npc; places: Place
       {open && (
         <tr>
           <td colSpan={3} className="pb-3">
-            <TextArea
-              aria-label={`Notes text for ${npc.name}`}
-              rows={4}
-              value={notes}
-              placeholder="Who they are, what they want, what they know, how they talk…"
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={commitNotes}
-              className="w-full"
-            />
+            {editing || !saved ? (
+              <TextArea
+                aria-label={`Notes text for ${npc.name}`}
+                rows={4}
+                value={notes}
+                autoFocus={editing}
+                placeholder="Who they are, what they want, what they know, how they talk…"
+                onChange={(e) => setNotes(e.target.value)}
+                onBlur={commitNotes}
+                className="w-full"
+              />
+            ) : (
+              <div className="flex items-start gap-2">
+                <p
+                  aria-label={`Notes of ${npc.name}`}
+                  className="flex-1 whitespace-pre-wrap rounded-md border border-stone-800 bg-stone-950/40 px-3 py-2 text-sm text-stone-300"
+                >
+                  <OrganizationText text={npc.notes ?? ''} organizations={organizations} />
+                </p>
+                <Button
+                  variant="ghost"
+                  aria-label={`Edit ${npc.name}'s notes`}
+                  onClick={() => {
+                    setNotes(npc.notes ?? '');
+                    setEditing(true);
+                  }}
+                >
+                  Edit
+                </Button>
+              </div>
+            )}
           </td>
         </tr>
       )}
@@ -110,6 +171,7 @@ function NpcRow({ npc, places, duplicate, startOpen }: { npc: Npc; places: Place
 export function NpcsPage() {
   const { locations, campaignId } = useLocations();
   const npcs = useNpcs();
+  const organizations = useOrganizations();
   const { params, setFilter, clearFilters } = useUrlFilters();
   const query = params.get('q') ?? '';
   const [name, setName] = useState('');
@@ -199,6 +261,7 @@ export function NpcsPage() {
                     key={n.id}
                     npc={n}
                     places={places}
+                    organizations={organizations ?? []}
                     duplicate={(dupes.get(n.name.toLowerCase()) ?? 0) > 1}
                     // Following an NPC's link from a location lands on just them, so show their notes.
                     startOpen={!!query.trim() && shown.length === 1}

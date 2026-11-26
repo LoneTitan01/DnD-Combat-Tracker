@@ -10,6 +10,8 @@ export * from './table';
 export * from './creature';
 export * from './party';
 export * from './npcs';
+export * from './organizations';
+export * from './mentions';
 export * from './encounter';
 export * from './conditions';
 export * from './sync';

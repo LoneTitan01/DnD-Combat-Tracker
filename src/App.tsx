@@ -14,6 +14,7 @@ import { LocationEditor } from './features/locations/LocationEditor';
 import { LocationPage } from './features/locations/LocationPage';
 import { LocationsPage } from './features/locations/LocationsPage';
 import { NpcsPage } from './features/npcs/NpcsPage';
+import { OrganizationsPage } from './features/organizations/OrganizationsPage';
 import { PartyPage } from './features/party/PartyPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { BulkAddSpells } from './features/spells/BulkAddSpells';
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="locations/:id" element={<LocationPage />} />
           <Route path="locations/:id/edit" element={<LocationEditor key="edit" />} />
           <Route path="npcs" element={<NpcsPage />} />
+          <Route path="organizations" element={<OrganizationsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           {/* Old bookmarks: sync now lives on the Settings page. */}
           <Route path="sync" element={<Navigate to="/settings" replace />} />

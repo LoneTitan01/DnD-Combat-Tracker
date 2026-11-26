@@ -9,6 +9,7 @@ import {
   type SpellUsage,
 } from '../models';
 import { newId } from './ids';
+import { splitMentions } from './mentions';
 
 export function blankSpell(): Spell {
   const now = Date.now();
@@ -261,28 +262,12 @@ export function normalizeSpellSlots(v: unknown): number[] | undefined {
 
 export type SpellTextPart = string | { text: string; spell: Spell };
 
-const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 /**
  * Splits text into plain runs and mentions of the given spells (whole words, any case), so a stat
  * block can turn "3rd level (3 slots): fireball, counterspell" into hoverable spell names.
  */
 export function splitSpellMentions(text: string, spells: readonly Spell[]): SpellTextPart[] {
-  const named = spells.filter((s) => s.name.trim());
-  if (!text || named.length === 0) return text ? [text] : [];
-  const byName = new Map(named.map((s) => [s.name.trim().toLowerCase(), s]));
-  // Longest first, so "Greater Invisibility" wins over "Invisibility".
-  const names = [...byName.keys()].sort((a, b) => b.length - a.length);
-  const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${names.map(escapeRegExp).join('|')})(?![\\p{L}\\p{N}])`, 'giu');
-  const parts: SpellTextPart[] = [];
-  let last = 0;
-  for (const m of text.matchAll(re)) {
-    if (m.index > last) parts.push(text.slice(last, m.index));
-    parts.push({ text: m[0], spell: byName.get(m[0].toLowerCase())! });
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return parts;
+  return splitMentions(text, spells).map((p) => (typeof p === 'string' ? p : { text: p.text, spell: p.item }));
 }
 
 /** Every bit of a stat block's text that can mention spells. */
