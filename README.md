@@ -1,6 +1,6 @@
 # DM Combat Tracker
 
-A local-first web app for preparing D&D 5e encounters and running them at the table. There is no backend: data lives in IndexedDB, and the app works offline as a PWA. See [Plan.md](Plan.md) for the full spec.
+A local-first web app for preparing D&D 5e encounters and running them at the table. There is no backend: data lives in IndexedDB (players' devices connect to the DM's browser peer-to-peer), and the app works offline as a PWA. See [Plan.md](Plan.md) for the full spec.
 
 ## Features
 
@@ -48,6 +48,12 @@ A local-first web app for preparing D&D 5e encounters and running them at the ta
 ### Player-facing screen
 - Open `#/table` in a second window on the same computer, for example on a TV. It shows the round, whose turn it is and an "Up Next" banner, updated live from the DM's screen.
 - Players' turns that come back to back are grouped. Dead creatures disappear. HP, stats, recharge state and conditions are never shown.
+
+### Players' own devices
+- On a combat, **📱 Players' devices → Start sharing** shows a 6-character join code and a link. Players open **Join** (`#/join`, also linked from the home page) on their phone, enter the code, and pick their character.
+- Each player sees the round, whose turn it is, who's up next (with "Your turn!" and a buzz on phones), and the turn order of living combatants. They can set their own initiative and toggle their own conditions; the DM's screen re-sorts and saves as if the DM had made the change. Players can't touch creatures, and they never receive HP, stats, notes or creature conditions.
+- The connection is peer-to-peer (WebRTC via [PeerJS](https://peerjs.com)). PeerJS's free public server is used only to make the handshake; combat data then goes directly between devices. It needs an internet connection, and the DM's combat tab must stay open. Sharing is remembered per combat, so reopening the combat or reloading resumes it under the same code, and player devices reconnect on their own.
+- Anyone with the code can edit the player characters in that combat. **New code** disconnects everyone; **Stop sharing** ends it.
 
 ### Offline and install
 - Installable PWA with app icons and an "Install app" button. It works fully offline after the first load, and the app asks the browser not to evict its stored data.

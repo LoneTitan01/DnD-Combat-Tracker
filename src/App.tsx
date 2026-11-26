@@ -20,6 +20,7 @@ import { BulkAddSpells } from './features/spells/BulkAddSpells';
 import { SpellEditor } from './features/spells/SpellEditor';
 import { SpellPage } from './features/spells/SpellPage';
 import { SpellsPage } from './features/spells/SpellsPage';
+import { JoinPage } from './features/remote/JoinPage';
 import { TablePage } from './features/table/TablePage';
 
 /** Hash routing so the static build works on GitHub Pages and offline without server rewrites. */
@@ -29,6 +30,8 @@ export default function App() {
       <Routes>
         {/* Player-facing page: no DM chrome. */}
         <Route path="/table" element={<TablePage />} />
+        {/* Players' own devices: join the DM's combat with a code. */}
+        <Route path="/join" element={<JoinPage />} />
         <Route element={<AppShell />}>
           <Route index element={<HomePage />} />
           <Route path="campaigns" element={<CampaignsPage />} />

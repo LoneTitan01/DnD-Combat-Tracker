@@ -39,7 +39,15 @@ export function HomePage() {
 
   return (
     <>
-      <PageHeader title="Prep & Play" />
+      <PageHeader title="Prep & Play">
+        <Link
+          to="/join"
+          className="rounded-md border border-sky-800 px-3 py-1.5 text-sm text-sky-200 hover:bg-sky-950"
+          title="For players: follow the DM's combat on this device"
+        >
+          Player? Join a combat →
+        </Link>
+      </PageHeader>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Stat label="Stat blocks" value={counts?.creatures} to="/bestiary" />
         <Stat label="Encounters" value={counts?.encounters} to="/encounters" />
