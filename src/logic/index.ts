@@ -17,6 +17,7 @@ export * from './conditions';
 export * from './sync';
 export * from './campaign';
 export * from './spells';
+export * from './items';
 export * from './parseText';
 export * from './locations';
 export * from './remote';

@@ -238,6 +238,64 @@ export interface Spell {
   updatedAt: number;
 }
 
+export const ITEM_CATEGORIES = ['weapon', 'armor', 'tool', 'gear'] as const;
+export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
+
+export const WEAPON_CLASSES = ['simple', 'martial'] as const;
+export type WeaponClass = (typeof WEAPON_CLASSES)[number];
+export const WEAPON_RANGES = ['melee', 'ranged'] as const;
+export type WeaponRange = (typeof WEAPON_RANGES)[number];
+
+export interface WeaponDetails {
+  class: WeaponClass;
+  range: WeaponRange;
+  /** Dice expression such as "1d8", or "1" for a blowgun. Blank for a net. */
+  damage: string;
+  damageType: DamageType;
+  /** Free text: "Finesse, light, thrown (range 20/60)". */
+  properties: string;
+}
+
+export const ARMOR_TYPES = ['light', 'medium', 'heavy', 'shield'] as const;
+export type ArmorType = (typeof ARMOR_TYPES)[number];
+
+export interface ArmorDetails {
+  type: ArmorType;
+  /** Free text: "11 + Dex modifier", "+2". */
+  ac: string;
+  /** Strength score needed to wear it without a speed penalty. 0 = none. */
+  strength: number;
+  stealthDisadvantage: boolean;
+}
+
+export const TOOL_TYPES = ['artisan', 'gaming', 'musical', 'other'] as const;
+export type ToolType = (typeof TOOL_TYPES)[number];
+
+export interface ToolDetails {
+  type: ToolType;
+}
+
+/**
+ * An item in the item list, shared by all campaigns like the bestiary and the spell list. Every item
+ * belongs to one of four categories. Details for the other categories are kept when the category
+ * changes, so switching back in the editor loses nothing.
+ */
+export interface Item {
+  id: ID;
+  name: string;
+  category: ItemCategory;
+  /** Free text: "15 gp", "5 sp". */
+  cost: string;
+  /** Free text: "3 lb.". */
+  weight: string;
+  description: string;
+  weapon?: WeaponDetails;
+  armor?: ArmorDetails;
+  tool?: ToolDetails;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** An umbrella for one group's players, locations, NPCs, encounters and combats. The bestiary is shared by all campaigns. */
 export interface Campaign {
   id: ID;
@@ -456,7 +514,7 @@ export interface Combat {
 
 // ---------- sync ----------
 
-export const SYNC_TABLES = ['campaigns', 'creatures', 'spells', 'players', 'locations', 'npcs', 'organizations', 'encounters', 'combats'] as const;
+export const SYNC_TABLES = ['campaigns', 'creatures', 'spells', 'items', 'players', 'locations', 'npcs', 'organizations', 'encounters', 'combats'] as const;
 export type SyncTable = (typeof SYNC_TABLES)[number];
 
 /** A record deleted on some device, so other devices delete it too instead of bringing it back. */
@@ -470,6 +528,7 @@ export interface SyncData {
   campaigns: Campaign[];
   creatures: CreatureTemplate[];
   spells: Spell[];
+  items: Item[];
   players: Player[];
   locations: Location[];
   npcs: Npc[];

@@ -5,6 +5,7 @@ import { CampaignBar } from '../features/campaigns/CampaignBar';
 import { SyncBadge } from '../features/settings/SyncSettings';
 import { startSync } from '../sync/manager';
 import {
+  BackpackIcon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
   ClipboardIcon,
@@ -26,6 +27,7 @@ const NAV: { to: string; label: string; icon: ComponentType; end?: boolean }[] =
   { to: '/', label: 'Home', icon: HomeIcon, end: true },
   { to: '/bestiary', label: 'Bestiary', icon: PawIcon },
   { to: '/spells', label: 'Spells', icon: SparklesIcon },
+  { to: '/items', label: 'Items', icon: BackpackIcon },
   { to: '/encounters', label: 'Encounters', icon: ClipboardIcon },
   { to: '/combats', label: 'Combats', icon: SwordsIcon },
   { to: '/party', label: 'Party', icon: UsersIcon },

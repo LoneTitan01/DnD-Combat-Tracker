@@ -14,7 +14,7 @@ export const stampOf = (r: Rec): number => r.updatedAt ?? 0;
 export const tombstoneKey = (t: Pick<Tombstone, 'table' | 'id'>): string => `${t.table}:${t.id}`;
 
 export function emptySyncData(): SyncData {
-  return { campaigns: [], creatures: [], spells: [], players: [], locations: [], npcs: [], organizations: [], encounters: [], combats: [], deletions: [] };
+  return { campaigns: [], creatures: [], spells: [], items: [], players: [], locations: [], npcs: [], organizations: [], encounters: [], combats: [], deletions: [] };
 }
 
 export function mergeTombstones(a: readonly Tombstone[], b: readonly Tombstone[]): Tombstone[] {
@@ -46,6 +46,7 @@ export function mergeSyncData(local: SyncData, remote: SyncData): SyncData {
     campaigns: mergeTable('campaigns', local.campaigns, remote.campaigns, deleted),
     creatures: mergeTable('creatures', local.creatures, remote.creatures, deleted),
     spells: mergeTable('spells', local.spells, remote.spells, deleted),
+    items: mergeTable('items', local.items, remote.items, deleted),
     players: mergeTable('players', local.players, remote.players, deleted),
     locations: mergeTable('locations', local.locations, remote.locations, deleted),
     npcs: mergeTable('npcs', local.npcs, remote.npcs, deleted),
@@ -80,6 +81,7 @@ export function parseSyncFile(raw: unknown): SyncFile {
     campaigns: list(f.campaigns),
     creatures: list(f.creatures),
     spells: list(f.spells),
+    items: list(f.items),
     players: list(f.players),
     locations: list(f.locations),
     npcs: list(f.npcs),
