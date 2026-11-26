@@ -19,6 +19,24 @@ export const bestiary = [
   },
 ];
 
+/** Test spells with placeholder text. The app ships none, so tests that link spells import these first. */
+export const testSpells = [
+  { name: 'Fireball', level: 3, school: 'evocation', range: '150 feet', description: 'Test spell: a burst of flame.' },
+  { name: 'Fire Bolt', level: 0, school: 'evocation', range: '120 feet', description: 'Test spell: a mote of fire.' },
+  { name: 'Shield', level: 1, school: 'abjuration', castingTime: 'Reaction', range: 'Self', description: 'Test spell: a ward.' },
+  { name: 'Counterspell', level: 3, school: 'abjuration', castingTime: 'Reaction', range: '60 feet', description: 'Test spell: interrupts a casting.' },
+];
+
+export async function addTestSpells(page: Page) {
+  await page.goto('#/spells');
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'spells.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(testSpells)),
+  });
+  await expect(page.getByRole('status')).toContainText(`Imported ${testSpells.length} new spells`);
+}
+
 export async function seed(page: Page) {
   await page.goto('#/bestiary');
   await page.locator('input[type=file]').setInputFiles({

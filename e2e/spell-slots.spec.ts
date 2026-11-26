@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { row } from "./helpers";
+import { addTestSpells, row } from "./helpers";
 
 test("spell slots: a stat block tracks slots instead of per-spell uses in combat", async ({
   page,
 }) => {
+  await addTestSpells(page);
   // ---- Stat block: link spells, switch to spell slots, set 4 × 1st and 2 × 3rd ----
   await page.goto("#/bestiary/new");
   await page.getByLabel("Name", { exact: true }).fill("Archmage");
