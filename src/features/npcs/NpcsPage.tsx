@@ -150,7 +150,7 @@ export function NpcsPage() {
               className="w-full sm:w-72"
             />
             {query && (
-              <Button variant="ghost" onClick={clearFilters}>
+              <Button variant="ghost" onClick={() => clearFilters()}>
                 Clear
               </Button>
             )}

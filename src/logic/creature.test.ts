@@ -137,6 +137,12 @@ describe('filterCreatures', () => {
     const withUntyped = [...list, makeTemplate({ name: 'Mystery', type: '', cr: '0' })];
     expect(names(filterCreatures(withUntyped, { sort: 'type' }))).toEqual(['Adult Red Dragon', 'Goblin', 'Goblin Boss', 'Owlbear', 'Mystery']);
   });
+  it('sorts any column descending, keeping untyped creatures last and ties by name A–Z', () => {
+    const withUntyped = [...list, makeTemplate({ name: 'Mystery', type: '', cr: '0' })];
+    expect(names(filterCreatures(list, { desc: true }))).toEqual(['Owlbear', 'Goblin Boss', 'Goblin', 'Adult Red Dragon']);
+    expect(names(filterCreatures(list, { sort: 'cr', desc: true }))).toEqual(['Adult Red Dragon', 'Owlbear', 'Goblin Boss', 'Goblin']);
+    expect(names(filterCreatures(withUntyped, { sort: 'type', desc: true }))).toEqual(['Owlbear', 'Goblin', 'Goblin Boss', 'Adult Red Dragon', 'Mystery']);
+  });
   it('sorts by name by default', () => {
     expect(names(filterCreatures(list))).toEqual(['Adult Red Dragon', 'Goblin', 'Goblin Boss', 'Owlbear']);
   });

@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { nextSort, SortableHeader } from '../../components/SortableHeader';
 import { Button, Card, PageHeader, Select, TextInput } from '../../components/ui';
 import { useUrlFilters } from '../../components/useUrlFilters';
 import { db } from '../../db';
@@ -10,12 +11,6 @@ import { SpellMention } from './SpellMention';
 
 const LEVELS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-const SORT_LABELS: Record<SpellSort, string> = {
-  level: 'Sort by level',
-  name: 'Sort by name',
-  school: 'Sort by school',
-  castingTime: 'Sort by casting time',
-};
 const asSort = (v: string | null): SpellSort => (SPELL_SORTS.includes(v as SpellSort) ? (v as SpellSort) : 'level');
 
 function Tag({ children, title }: { children: string; title: string }) {
@@ -34,7 +29,14 @@ export function SpellsPage() {
   const level = params.get('level') ?? '';
   const school = params.get('school') ?? '';
   const sort = asSort(params.get('sort'));
-  const shown = useMemo(() => filterSpells(all ?? [], { query, level, school, sort }), [all, query, level, school, sort]);
+  const desc = params.get('dir') === 'desc';
+  const shown = useMemo(() => filterSpells(all ?? [], { query, level, school, sort, desc }), [all, query, level, school, sort, desc]);
+  const onSort = (column: SpellSort) => {
+    const next = nextSort({ sort, desc }, column);
+    setFilter('sort', next.sort === 'level' ? '' : next.sort);
+    setFilter('dir', next.desc ? 'desc' : '');
+  };
+  const sortProps = { sort, desc, onSort };
   const schools = useMemo(() => spellSchools(all ?? []), [all]);
   const filtered = !!(query || level || school);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -117,15 +119,8 @@ export function SpellsPage() {
             </option>
           ))}
         </Select>
-        <Select aria-label="Sort" value={sort} onChange={(e) => setFilter('sort', asSort(e.target.value) === 'level' ? '' : e.target.value)}>
-          {(['level', 'name', 'school', 'castingTime'] as const).map((s) => (
-            <option key={s} value={s}>
-              {SORT_LABELS[s]}
-            </option>
-          ))}
-        </Select>
         {filtered && (
-          <Button variant="ghost" onClick={clearFilters}>
+          <Button variant="ghost" onClick={() => clearFilters(['sort', 'dir'])}>
             Clear
           </Button>
         )}
@@ -148,10 +143,10 @@ export function SpellsPage() {
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase tracking-wider text-stone-500">
               <tr className="border-b border-stone-800">
-                <th className="px-4 py-2 font-medium">Name</th>
-                <th className="px-2 py-2 font-medium">Level</th>
-                <th className="px-2 py-2 font-medium">School</th>
-                <th className="px-2 py-2 font-medium">Casting time</th>
+                <SortableHeader column="name" label="Name" className="px-4" {...sortProps} />
+                <SortableHeader column="level" label="Level" className="px-2" {...sortProps} />
+                <SortableHeader column="school" label="School" className="px-2" {...sortProps} />
+                <SortableHeader column="castingTime" label="Casting time" className="px-2" {...sortProps} />
                 <th className="px-2 py-2 font-medium">Range</th>
                 <th className="px-4 py-2" />
               </tr>

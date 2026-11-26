@@ -62,6 +62,8 @@ export interface SpellFilter {
   school?: string;
   /** Defaults to 'level' (level, then name), the order spell lists are usually printed in. */
   sort?: SpellSort;
+  /** Reverse the sort column. Ties still break the usual way, and blank schools or unrecognised casting times stay last. */
+  desc?: boolean;
 }
 
 export const SPELL_SORTS = ['name', 'level', 'school', 'castingTime'] as const;
@@ -102,29 +104,33 @@ export function filterSpells(list: readonly Spell[], f: SpellFilter = {}): Spell
         (level === null || s.level === level) &&
         (!school || s.school.trim().toLowerCase() === school),
     )
-    .sort(spellComparator(f.sort));
+    .sort(spellComparator(f.sort, f.desc));
 }
 
-function spellComparator(sort: SpellSort = 'level'): (a: Spell, b: Spell) => number {
+function spellComparator(sort: SpellSort = 'level', desc = false): (a: Spell, b: Spell) => number {
+  const dir = desc ? -1 : 1;
   const byName = (a: Spell, b: Spell) => a.name.localeCompare(b.name);
   const byLevel = (a: Spell, b: Spell) => a.level - b.level;
   const schoolOf = (s: Spell) => s.school.trim().toLowerCase();
   switch (sort) {
     case 'name':
-      return byName;
+      return (a, b) => dir * byName(a, b);
     case 'school':
-      // Spells with no school go last rather than first.
+      // Spells with no school go last rather than first, whichever way the column is sorted.
       return (a, b) =>
-        Number(!schoolOf(a)) - Number(!schoolOf(b)) || schoolOf(a).localeCompare(schoolOf(b)) || byLevel(a, b) || byName(a, b);
+        Number(!schoolOf(a)) - Number(!schoolOf(b)) || dir * schoolOf(a).localeCompare(schoolOf(b)) || byLevel(a, b) || byName(a, b);
     case 'castingTime': {
       return (a, b) => {
         const ra = castingTimeRank(a.castingTime);
         const rb = castingTimeRank(b.castingTime);
-        return (ra === rb ? 0 : ra < rb ? -1 : 1) || byLevel(a, b) || byName(a, b);
+        if (ra === rb) return byLevel(a, b) || byName(a, b);
+        // Unrecognised casting times (Infinity) stay last either way.
+        if (ra === Infinity || rb === Infinity) return ra === Infinity ? 1 : -1;
+        return dir * (ra < rb ? -1 : 1);
       };
     }
     default:
-      return (a, b) => byLevel(a, b) || byName(a, b);
+      return (a, b) => dir * byLevel(a, b) || byName(a, b);
   }
 }
 

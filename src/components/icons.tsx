@@ -129,3 +129,17 @@ export const MenuIcon = (p: P) => (
     <line x1="4" x2="20" y1="18" y2="18" />
   </Icon>
 );
+
+export const ArrowUpIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="m5 12 7-7 7 7" />
+    <path d="M12 19V5" />
+  </Icon>
+);
+
+export const ArrowDownIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 5v14" />
+    <path d="m19 12-7 7-7-7" />
+  </Icon>
+);
