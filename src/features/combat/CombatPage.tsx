@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Button, Card, PageHeader } from '../../components/ui';
 import type { Combat, CreatureTemplate, ID } from '../../models';
+import { SharePanel, ShareButton } from '../remote/SharePanel';
+import { useRemoteHost } from '../remote/useRemoteHost';
 import { openTableWindow, useTablePublisher } from '../table/tableChannel';
 import { CombatLog, XPTally } from './CombatLog';
 import { StagingView } from './StagingView';
@@ -70,6 +73,8 @@ export function CombatPage() {
   const [combat, update, saving] = useCombat(id);
   const templates = useTemplates();
   useTablePublisher(combat, templates);
+  const host = useRemoteHost(combat, templates, update);
+  const [showShare, setShowShare] = useState(false);
 
   if (combat === undefined) return null;
   if (combat === null) {
@@ -95,6 +100,7 @@ export function CombatPage() {
         <Button onClick={() => openTableWindow(combat.id)} title="Open the player-facing screen in a new window">
           Player view ↗
         </Button>
+        <ShareButton host={host} open={showShare} onClick={() => setShowShare((v) => !v)} />
         <Button
           variant="ghost"
           onClick={async () => {
@@ -104,6 +110,7 @@ export function CombatPage() {
           Delete
         </Button>
       </PageHeader>
+      {showShare && <SharePanel host={host} />}
       {combat.status === 'staged' && <StagingView combat={combat} update={update} templates={templates} />}
       {combat.status === 'active' && <TrackerView combat={combat} update={update} templates={templates} />}
       {combat.status === 'ended' && <RecapView combat={combat} templates={templates} update={update} />}

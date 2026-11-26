@@ -168,6 +168,16 @@ A separate page for the players shows whose turn it is and who is up next. When 
 - Before and after combat: a staged combat shows "Waiting to start"; an ended one shows "Combat over".
 - Design: large type readable across a table, high contrast, no controls. Creature names are drawn in red so players can tell monsters from players at a glance.
 
+### 8. Players' own devices (added Nov 26, 2026)
+
+Players follow the combat on their own phones and keep their own initiative and conditions up to date.
+
+- Joining: the DM turns on sharing from the combat screen and gets a 6-character code (no 0/O or 1/I/L) and a link to `#/join?code=…`. A player enters the code at `#/join`, then picks their character from the player combatants (or "Just watching"). The code and character are remembered on the device.
+- Connection: WebRTC data channels through PeerJS. The DM's tab registers as `dm-combat-tracker-<code>` on PeerJS's free public server, which is used only for the handshake. No backend of our own, so it still works on GitHub Pages. The DM's tab must stay open; players reconnect with backoff, and right away when the phone wakes or comes back online. A few strict networks may fail to connect, since there's no TURN relay.
+- The DM's screen is the only source of truth. It sends each device a pre-computed view (`remoteView` in `src/logic/remote.ts`): round, the table view's now/up-next groups, living combatants in order, and each player character's initiative and conditions. HP, stats, notes, recharge state and creature conditions are never sent.
+- Players send back two actions, set initiative and set a condition on/off, which are validated (`parsePlayerMessage`) and applied only to player combatants of a combat that isn't over (`applyPlayerAction`). They go through the combat screen's `update`, so they autosave and re-sort like the DM's own edits. A duration set by the DM is kept unless the player removes the condition.
+- Tests replace PeerJS with a `BroadcastChannel` fake (`window.__DMCT_TRANSPORT__ = 'broadcast'`).
+
 ## Architecture and tech stack
 
 Recommendation: a local-first browser app with no backend, so it works offline at the table and costs nothing to host.
