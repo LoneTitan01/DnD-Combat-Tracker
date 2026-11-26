@@ -2,7 +2,7 @@ import Dexie, { type EntityTable } from 'dexie';
 import { campaignOf, defaultCampaign, inCampaign, newCampaign } from '../logic/campaign';
 import { normalizeConditions } from '../logic/conditions';
 import { normalizeCreature } from '../logic/creature';
-import { needsRestock, planLocationDelete, planLocationSave, restockShop } from '../logic/locations';
+import { needsRestock, planLocationDelete, planLocationSave, restockShop, sellOne } from '../logic/locations';
 import { newId } from '../logic/ids';
 import { npcsFromLegacyLocations } from '../logic/npcs';
 import { normalizeItem } from '../logic/items';
@@ -392,6 +392,18 @@ export async function restockLocation(id: ID, database: TrackerDB = db): Promise
     const loc = await database.locations.get(id);
     if (!loc?.shop || !needsRestock(loc.shop)) return;
     await database.locations.put({ ...loc, shop: restockShop(loc.shop), updatedAt: Date.now() });
+  });
+  changed();
+}
+
+/** Sells one of a shop item: its stock goes down by one (see `sellOne`). */
+export async function sellShopItem(locationId: ID, rowId: ID, database: TrackerDB = db): Promise<void> {
+  await database.transaction('rw', database.locations, async () => {
+    const loc = await database.locations.get(locationId);
+    if (!loc?.shop) return;
+    const shop = sellOne(loc.shop, rowId);
+    if (shop.every((row, n) => row === loc.shop![n])) return;
+    await database.locations.put({ ...loc, shop, updatedAt: Date.now() });
   });
   changed();
 }

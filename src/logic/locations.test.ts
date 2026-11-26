@@ -12,7 +12,9 @@ import {
   parseStock,
   planLocationSave,
   restockShop,
+  sellOne,
   shopItemFor,
+  shopOnlyItem,
   siblingsOf,
   stockLabel,
   validateLocation,
@@ -146,6 +148,20 @@ describe('shop items', () => {
     expect(restocked.map((r) => r.stock)).toEqual([5, 2, 1, undefined]);
     expect(needsRestock(restocked)).toBe(false);
     expect(needsRestock([rows[2]!, rows[3]!])).toBe(false);
+  });
+
+  it('makes shop-only items, not tied to the item list', () => {
+    const scroll = shopOnlyItem('Scroll of Mending');
+    expect(scroll).toEqual({ id: scroll.id, name: 'Scroll of Mending', cost: '', description: '' });
+    expect(scroll).not.toHaveProperty('itemId');
+  });
+
+  it('sells one at a time, never below 0, and only counted items', () => {
+    const rows = [{ ...item('Rope'), stock: 1 }, item('Map')];
+    const once = sellOne(rows, rows[0]!.id);
+    expect(once[0]?.stock).toBe(0);
+    expect(sellOne(once, rows[0]!.id)[0]?.stock).toBe(0);
+    expect(sellOne(rows, rows[1]!.id)[1]).toBe(rows[1]);
   });
 
   it('needs a name on every filled-in item', () => {

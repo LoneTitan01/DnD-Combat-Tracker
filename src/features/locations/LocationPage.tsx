@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Button, Card } from '../../components/ui';
-import { db, deleteLocation, restockLocation } from '../../db';
+import { db, deleteLocation, restockLocation, sellShopItem } from '../../db';
 import { ancestorsOf, childrenOf, itemSubtitle, itemSummary, needsRestock, npcsAt, siblingsOf, stockLabel } from '../../logic';
 import type { Item, Location, ShopItem } from '../../models';
 import { LocationLink, NpcLink, useLocations, useNpcs } from './shared';
@@ -20,9 +20,19 @@ function LinkList({ items }: { items: ReactNode[] }) {
   return <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm">{items}</ul>;
 }
 
-/** A shop row's item: a link to it in the item list, with its type, or plain text for rows not tied to one. */
+/**
+ * A shop row's item: a link to it in the item list, with its type. Shop-only items, and items since
+ * deleted from the item list, are plain text.
+ */
 function ShopItemName({ row, item }: { row: ShopItem; item: Item | undefined }) {
-  if (!item) return <span className="font-medium">{row.name}</span>;
+  if (!item) {
+    return (
+      <>
+        <span className="font-medium">{row.name}</span>
+        {!row.itemId && <span className="block text-xs text-stone-500">Shop only</span>}
+      </>
+    );
+  }
   const details = [itemSubtitle(item), itemSummary(item)].filter(Boolean).join(', ');
   return (
     <>
@@ -65,6 +75,18 @@ function ShopTable({ locationId, items }: { locationId: string; items: ShopItem[
                   <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums">
                     {stockLabel(i)}
                     {i.stock === 0 && <span className="ml-1.5 text-xs text-red-400">sold out</span>}
+                    {i.stock !== undefined && (
+                      <Button
+                        variant="ghost"
+                        aria-label={`Sell one ${i.name}`}
+                        title="Sell one: take it off the shelf"
+                        disabled={i.stock === 0}
+                        className="ml-1.5 px-2 py-0.5 text-xs"
+                        onClick={() => void sellShopItem(locationId, i.id)}
+                      >
+                        Sell one
+                      </Button>
+                    )}
                   </td>
                 )}
                 <td className="py-1.5 text-stone-300">{i.description}</td>

@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { Button, Card, Field, PageHeader, Select, TextArea, TextInput } from '../../components/ui';
 import { db, saveLocation, setLocationNpcs } from '../../db';
 import {
@@ -14,6 +14,7 @@ import {
   parseStock,
   placeLabel,
   shopItemFor,
+  shopOnlyItem,
   validateLocation,
 } from '../../logic';
 import type { ID, Item, Location, Npc, ShopItem } from '../../models';
@@ -196,17 +197,25 @@ function StockInput({
 
 /**
  * The shop table: one row per item for sale, in the order they're listed. Items are picked from the
- * item list and start at its price, which each shop can change.
+ * item list and start at its price, which each shop can change. Anything not in the item list can be
+ * added as a shop-only item, with its own name and description.
  */
 function ShopEditor({ items, catalog, onChange }: { items: ShopItem[]; catalog: Item[]; onChange: (items: ShopItem[]) => void }) {
   const [name, setName] = useState('');
   const set = (id: ID, patch: Partial<ShopItem>) => onChange(items.map((i) => (i.id === id ? { ...i, ...patch } : i)));
   const byId = new Map(catalog.map((i) => [i.id, i]));
   const stocked = new Set(items.map((i) => i.itemId));
+  const typed = name.trim();
   const match = findItemByName(catalog, name);
+  const duplicateShopOnly = match ? undefined : findItemByName(items.filter((i) => !i.itemId), name);
   const add = () => {
     if (!match) return;
     if (!stocked.has(match.id)) onChange([...items, shopItemFor(match)]);
+    setName('');
+  };
+  const addShopOnly = () => {
+    if (!typed || match || duplicateShopOnly) return;
+    onChange([...items, shopOnlyItem(typed)]);
     setName('');
   };
   return (
@@ -231,13 +240,16 @@ function ShopEditor({ items, catalog, onChange }: { items: ShopItem[]; catalog: 
                   <span className="ml-2 text-xs text-stone-500">{listed ? itemSubtitle(listed) : 'no longer in the item list'}</span>
                 </div>
               ) : (
-                <TextInput
-                  aria-label={`Item ${n + 1} name`}
-                  placeholder="Item"
-                  value={item.name}
-                  className="min-w-40 flex-[2]"
-                  onChange={(e) => set(item.id, { name: e.target.value })}
-                />
+                <div className="flex min-w-40 flex-[2] items-center gap-2">
+                  <TextInput
+                    aria-label={`Item ${n + 1} name`}
+                    placeholder="Item"
+                    value={item.name}
+                    className="min-w-0 flex-1"
+                    onChange={(e) => set(item.id, { name: e.target.value })}
+                  />
+                  <span className="whitespace-nowrap text-xs text-stone-500">shop only</span>
+                </div>
               )}
               <TextInput
                 aria-label={`Item ${n + 1} cost`}
@@ -268,46 +280,55 @@ function ShopEditor({ items, catalog, onChange }: { items: ShopItem[]; catalog: 
           })}
         </ol>
       )}
-      {catalog.length === 0 ? (
-        <p className="text-sm text-stone-500">
-          Shops sell items from the item list, which is empty.{' '}
-          <Link to="/items" className="text-amber-400 hover:underline">
-            Add items
-          </Link>{' '}
-          first.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-1">
-          <datalist id={ITEM_NAMES}>
-            {catalog
-              .filter((i) => !stocked.has(i.id))
-              .map((i) => (
-                <option key={i.id} value={i.name} />
-              ))}
-          </datalist>
-          <div className="flex items-end gap-2">
-            <Field label={items.length ? 'Add an item' : 'Add a shop'} hint="pick from the item list" className="flex-1">
-              <TextInput
-                value={name}
-                list={ITEM_NAMES}
-                placeholder="Longsword"
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    add();
-                  }
-                }}
-              />
-            </Field>
+      <div className="flex flex-col gap-1">
+        <datalist id={ITEM_NAMES}>
+          {catalog
+            .filter((i) => !stocked.has(i.id))
+            .map((i) => (
+              <option key={i.id} value={i.name} />
+            ))}
+        </datalist>
+        <div className="flex flex-wrap items-end gap-2">
+          <Field
+            label={items.length ? 'Add an item' : 'Add a shop'}
+            hint={catalog.length ? 'pick from the item list, or add a shop-only item' : 'the item list is empty, so items added here are shop-only'}
+            className="min-w-48 flex-1"
+          >
+            <TextInput
+              value={name}
+              list={ITEM_NAMES}
+              placeholder="Longsword"
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter only picks from the item list, so a typo doesn't become a shop-only item.
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  add();
+                }
+              }}
+            />
+          </Field>
+          {match || !typed ? (
             <Button onClick={add} disabled={!match}>
               Add item
             </Button>
-          </div>
-          {name.trim() && !match && <p className="text-xs text-stone-500">No item called “{name.trim()}” in the item list.</p>}
-          {match && stocked.has(match.id) && <p className="text-xs text-stone-500">{match.name} is already for sale here.</p>}
+          ) : (
+            <Button onClick={addShopOnly} disabled={!!duplicateShopOnly}>
+              Add as shop-only item
+            </Button>
+          )}
         </div>
-      )}
+        {typed && !match && (
+          <p className="text-xs text-stone-500">
+            {duplicateShopOnly ? (
+              `${duplicateShopOnly.name} is already for sale here.`
+            ) : (
+              `“${typed}” isn't in the item list. Add it here for this shop only, or create it on the Items page to sell it anywhere.`
+            )}
+          </p>
+        )}
+        {match && stocked.has(match.id) && <p className="text-xs text-stone-500">{match.name} is already for sale here.</p>}
+      </div>
     </section>
   );
 }

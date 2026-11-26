@@ -115,6 +115,16 @@ export function shopItemFor(item: Pick<Item, 'id' | 'name' | 'cost'>): ShopItem 
   return { id: newId(), itemId: item.id, name: item.name, cost: item.cost, description: '' };
 }
 
+/** A shop row for something that isn't in the item list: this shop alone sells it. */
+export function shopOnlyItem(name: string): ShopItem {
+  return { id: newId(), name, cost: '', description: '' };
+}
+
+/** Sells one of a shop row: its stock goes down by one, never below 0. Rows whose stock isn't counted don't change. */
+export function sellOne(shop: readonly ShopItem[], rowId: ID): ShopItem[] {
+  return shop.map((i) => (i.id === rowId && i.stock !== undefined && i.stock > 0 ? { ...i, stock: i.stock - 1 } : i));
+}
+
 const blankItem = (i: ShopItem) =>
   !i.itemId && !i.name.trim() && !i.cost.trim() && !i.description.trim() && i.stock === undefined && i.maxStock === undefined;
 

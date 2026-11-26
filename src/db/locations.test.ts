@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
-import { TrackerDB, deleteLocation, localSyncData, restockLocation, saveLocation } from '.';
+import { TrackerDB, deleteLocation, localSyncData, restockLocation, saveLocation, sellShopItem } from '.';
 import { blankLocation } from '../logic';
 
 let n = 0;
@@ -41,5 +41,18 @@ describe('locations', () => {
     const after = (await open.locations.get('shop'))!;
     expect(after.shop?.[0]?.stock).toBe(4);
     expect(after.updatedAt).toBeGreaterThan(before);
+
+    await sellShopItem('shop', 'r', open);
+    expect((await open.locations.get('shop'))?.shop?.[0]?.stock).toBe(3);
+  });
+
+  it("doesn't touch the location when there's nothing to sell", async () => {
+    open = new TrackerDB(`locations-${++n}`);
+    const row = { id: 'r', name: 'Rope', cost: '1 gp', description: '', stock: 0 };
+    await saveLocation({ ...blankLocation('c'), id: 'shop', name: "Aubrey's", shop: [row] }, [], open);
+    const before = (await open.locations.get('shop'))!.updatedAt;
+    await new Promise((r) => setTimeout(r, 2));
+    await sellShopItem('shop', 'r', open);
+    expect((await open.locations.get('shop'))!.updatedAt).toBe(before);
   });
 });

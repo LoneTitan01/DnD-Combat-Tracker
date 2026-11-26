@@ -90,10 +90,10 @@ async function newItem(page: Page, name: string, category: string, cost: string)
   await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
 }
 
-test('locations: an optional shop table with items from the item list', async ({ page }) => {
+test('locations: an optional shop table with items from the item list or shop-only, with stock', async ({ page }) => {
   // With nothing in the item list, the shop points there.
   await page.goto('#/locations/new');
-  await expect(page.getByRole('region', { name: 'Shop' })).toContainText('the item list, which is empty');
+  await expect(page.getByRole('region', { name: 'Shop' })).toContainText('the item list is empty, so items added here are shop-only');
 
   await newItem(page, 'Longsword', 'weapon', '15 gp');
   await newItem(page, 'Rope (50 ft)', 'gear', '1 gp');
@@ -110,30 +110,44 @@ test('locations: an optional shop table with items from the item list', async ({
   await page.getByRole('textbox', { name: 'Item 1 cost' }).fill('20 gp');
   await page.getByRole('textbox', { name: 'Item 1 description' }).fill('Dwarven steel, slightly used');
 
-  // Names that aren't in the item list can't be added, nor can an item twice.
+  // Names that aren't in the item list can be added as shop-only items, with their own name and description.
   const picker = page.getByRole('combobox', { name: 'Add an item' });
   await picker.fill('Bag of Holding');
-  await expect(page.getByText('No item called “Bag of Holding” in the item list.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Add item' })).toBeDisabled();
+  await expect(page.getByText("“Bag of Holding” isn't in the item list.")).toBeVisible();
+  await picker.press('Enter'); // Enter only picks from the item list.
+  await expect(page.getByRole('list', { name: 'Shop items' }).getByRole('listitem')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Add as shop-only item' }).click();
+  await expect(page.getByRole('textbox', { name: 'Item 2 name' })).toHaveValue('Bag of Holding');
+  await page.getByRole('textbox', { name: 'Item 2 cost' }).fill('500 gp');
+  await page.getByRole('textbox', { name: 'Item 2 description' }).fill('Bigger inside');
+
+  // Nothing can be added twice.
+  await picker.fill('bag of holding');
+  await expect(page.getByText('Bag of Holding is already for sale here.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add as shop-only item' })).toBeDisabled();
   await picker.fill('Longsword');
   await expect(page.getByText('Longsword is already for sale here.')).toBeVisible();
   await picker.fill('Rope (50 ft)');
   await picker.press('Enter');
-  await expect(page.getByRole('textbox', { name: 'Item 2 cost' })).toHaveValue('1 gp');
+  await expect(page.getByRole('textbox', { name: 'Item 3 cost' })).toHaveValue('1 gp');
 
   // Stock is optional: the longswords are sold out until a restock; rope is counted but never restocked.
   await page.getByRole('spinbutton', { name: 'Item 1 in stock' }).fill('0');
   await page.getByRole('spinbutton', { name: 'Item 1 max stock' }).fill('3');
-  await page.getByRole('spinbutton', { name: 'Item 2 in stock' }).fill('10');
+  await page.getByRole('spinbutton', { name: 'Item 3 in stock' }).fill('10');
   await page.getByRole('button', { name: 'Save location' }).click();
   await expect(page.getByRole('heading', { name: 'The Gilded Anvil', level: 1 })).toBeVisible();
 
   const shop = page.getByRole('region', { name: 'Shop' });
   await expect(shop.getByRole('row')).toHaveText([
     /Item\s*Cost\s*Stock\s*Description/,
-    /Longsword\s*Simple melee weapon, 1d6 slashing\s*20 gp\s*0 \/ 3\s*sold out\s*Dwarven steel, slightly used/,
-    /Rope \(50 ft\)\s*Adventuring gear\s*1 gp\s*10/,
+    /Longsword\s*Simple melee weapon, 1d6 slashing\s*20 gp\s*0 \/ 3\s*sold out\s*Sell one\s*Dwarven steel, slightly used/,
+    /Bag of Holding\s*Shop only\s*500 gp\s*Bigger inside/,
+    /Rope \(50 ft\)\s*Adventuring gear\s*1 gp\s*10\s*Sell one/,
   ]);
+  // Only counted items can be sold, and not once they're gone.
+  await expect(shop.getByRole('button', { name: 'Sell one Bag of Holding' })).toHaveCount(0);
+  await expect(shop.getByRole('button', { name: 'Sell one Longsword' })).toBeDisabled();
 
   // Restocking fills items back up to their maximum, and sticks.
   await shop.getByRole('button', { name: 'Restock' }).click();
@@ -142,7 +156,16 @@ test('locations: an optional shop table with items from the item list', async ({
   await expect(shop.getByRole('button', { name: 'Restock' })).toBeDisabled();
   await page.reload();
   await expect(shop.getByRole('row').nth(1)).toContainText('3 / 3');
-  await expect(shop.getByRole('row').nth(2)).toContainText(/1 gp\s*10/);
+  await expect(shop.getByRole('row').nth(3)).toContainText(/1 gp\s*10/);
+
+  // Selling one takes it off the shelf; a restock puts it back.
+  await shop.getByRole('button', { name: 'Sell one Longsword' }).click();
+  await expect(shop.getByRole('row').nth(1)).toContainText('2 / 3');
+  await expect(shop.getByRole('button', { name: 'Restock' })).toBeEnabled();
+  await shop.getByRole('button', { name: 'Sell one Rope (50 ft)' }).click();
+  await expect(shop.getByRole('row').nth(3)).toContainText(/1 gp\s*9/);
+  await page.reload();
+  await expect(shop.getByRole('row').nth(1)).toContainText('2 / 3');
 
   // Item names link to the item list.
   await shop.getByRole('link', { name: 'Longsword' }).click();
@@ -157,6 +180,7 @@ test('locations: an optional shop table with items from the item list', async ({
   // Removing every item removes the shop.
   await page.getByRole('link', { name: 'The Gilded Anvil' }).click();
   await page.getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('button', { name: 'Remove item 3' }).click();
   await page.getByRole('button', { name: 'Remove item 2' }).click();
   await page.getByRole('button', { name: 'Remove item 1' }).click();
   await page.getByRole('button', { name: 'Save location' }).click();
