@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
-import { TrackerDB, deleteLocation, localSyncData, saveLocation } from '.';
+import { TrackerDB, deleteLocation, localSyncData, restockLocation, saveLocation } from '.';
 import { blankLocation } from '../logic';
 
 let n = 0;
@@ -29,5 +29,17 @@ describe('locations', () => {
     const sync = await localSyncData(open);
     expect(sync.locations.map((l) => l.id).sort()).toEqual(['far', 'shop']);
     expect(sync.deletions).toMatchObject([{ table: 'locations', id: 'town' }]);
+  });
+
+  it('restocks a shop as an edit, so sync picks it up', async () => {
+    open = new TrackerDB(`locations-${++n}`);
+    const row = { id: 'r', name: 'Rope', cost: '1 gp', description: '', stock: 0, maxStock: 4 };
+    await saveLocation({ ...blankLocation('c'), id: 'shop', name: "Aubrey's", shop: [row] }, [], open);
+    const before = (await open.locations.get('shop'))!.updatedAt;
+    await new Promise((r) => setTimeout(r, 2));
+    await restockLocation('shop', open);
+    const after = (await open.locations.get('shop'))!;
+    expect(after.shop?.[0]?.stock).toBe(4);
+    expect(after.updatedAt).toBeGreaterThan(before);
   });
 });

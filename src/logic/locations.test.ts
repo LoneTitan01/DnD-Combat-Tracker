@@ -8,9 +8,13 @@ import {
   locationTree,
   parentOptions,
   planLocationDelete,
+  needsRestock,
+  parseStock,
   planLocationSave,
+  restockShop,
   shopItemFor,
   siblingsOf,
+  stockLabel,
   validateLocation,
 } from './locations';
 
@@ -109,6 +113,39 @@ describe('shop items', () => {
     expect(row).toMatchObject({ itemId: 'sword', name: 'Longsword', cost: '15 gp', description: '' });
     // A listed item stays even with its price cleared: it's for sale, price to be haggled.
     expect(cleanLocation({ ...shop, shop: [{ ...row, name: '', cost: '' }] }).shop).toHaveLength(1);
+  });
+
+  it('keeps whole, non-negative stock counts and drops the rest', () => {
+    const rope = { ...item('Rope'), stock: 2.7, maxStock: -1 };
+    expect(cleanLocation({ ...shop, shop: [rope] }).shop).toEqual([{ id: rope.id, name: 'Rope', cost: '', description: '', stock: 2 }]);
+    // A row with only a stock count isn't blank, so it needs a name.
+    expect(validateLocation({ ...shop, shop: [{ ...item(''), stock: 3 }] }, all)).toContain('Give every shop item a name.');
+  });
+
+  it('reads stock boxes as whole numbers from 0', () => {
+    expect(parseStock('')).toBeUndefined();
+    expect(parseStock(' 4 ')).toBe(4);
+    expect(parseStock('2.9')).toBe(2);
+    expect(parseStock('-3')).toBe(0);
+    expect(parseStock('lots')).toBeUndefined();
+  });
+
+  it('labels stock and restocks items with a maximum', () => {
+    expect(stockLabel({})).toBe('');
+    expect(stockLabel({ stock: 3 })).toBe('3');
+    expect(stockLabel({ stock: 1, maxStock: 5 })).toBe('1 / 5');
+    expect(stockLabel({ maxStock: 5 })).toBe('– / 5');
+    const rows = [
+      { ...item('Rope'), stock: 1, maxStock: 5 },
+      { ...item('Potion'), maxStock: 2 },
+      { ...item('Sword'), stock: 1 },
+      item('Map'),
+    ];
+    expect(needsRestock(rows)).toBe(true);
+    const restocked = restockShop(rows);
+    expect(restocked.map((r) => r.stock)).toEqual([5, 2, 1, undefined]);
+    expect(needsRestock(restocked)).toBe(false);
+    expect(needsRestock([rows[2]!, rows[3]!])).toBe(false);
   });
 
   it('needs a name on every filled-in item', () => {

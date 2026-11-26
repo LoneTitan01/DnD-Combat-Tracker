@@ -115,7 +115,35 @@ export function shopItemFor(item: Pick<Item, 'id' | 'name' | 'cost'>): ShopItem 
   return { id: newId(), itemId: item.id, name: item.name, cost: item.cost, description: '' };
 }
 
-const blankItem = (i: ShopItem) => !i.itemId && !i.name.trim() && !i.cost.trim() && !i.description.trim();
+const blankItem = (i: ShopItem) =>
+  !i.itemId && !i.name.trim() && !i.cost.trim() && !i.description.trim() && i.stock === undefined && i.maxStock === undefined;
+
+/** A stock count typed into a box: a whole number from 0, or undefined when the box is empty or not a number. */
+export function parseStock(text: string): number | undefined {
+  if (!text.trim()) return undefined;
+  const n = Math.floor(Number(text));
+  return Number.isFinite(n) ? Math.max(0, n) : undefined;
+}
+
+/** "3 / 5", "3" with no maximum, "– / 5" when the current count isn't known; '' when stock isn't counted. */
+export function stockLabel(i: Pick<ShopItem, 'stock' | 'maxStock'>): string {
+  if (i.maxStock === undefined) return i.stock === undefined ? '' : String(i.stock);
+  return `${i.stock ?? '–'} / ${i.maxStock}`;
+}
+
+/** Whether restocking would change anything: some item with a maximum is below it. */
+export function needsRestock(shop: readonly ShopItem[] = []): boolean {
+  return shop.some((i) => i.maxStock !== undefined && i.stock !== i.maxStock);
+}
+
+/** Fills every item with a maximum back up to it. Items without one are left as they are. */
+export function restockShop(shop: readonly ShopItem[]): ShopItem[] {
+  return shop.map((i) => (i.maxStock === undefined ? i : { ...i, stock: i.maxStock }));
+}
+
+/** Whole, non-negative stock counts; anything else is dropped. */
+const cleanCount = (key: 'stock' | 'maxStock', n: number | undefined) =>
+  n !== undefined && Number.isFinite(n) && n >= 0 ? { [key]: Math.floor(n) } : {};
 
 /** Name, notes, shop item and NPC search, ignoring case. `npcs` are the campaign's NPCs, matched to where they live. */
 export function filterLocations(
@@ -155,7 +183,14 @@ export function cleanLocation(loc: Location): Location {
   const { parentId, shop, ...rest } = loc;
   const items = (shop ?? [])
     .filter((i) => !blankItem(i))
-    .map((i) => ({ ...i, name: i.name.trim(), cost: i.cost.trim(), description: i.description.trim() }));
+    .map(({ stock, maxStock, ...i }) => ({
+      ...i,
+      name: i.name.trim(),
+      cost: i.cost.trim(),
+      description: i.description.trim(),
+      ...cleanCount('stock', stock),
+      ...cleanCount('maxStock', maxStock),
+    }));
   return {
     ...rest,
     ...(parentId ? { parentId } : {}),

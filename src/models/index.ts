@@ -388,6 +388,10 @@ export interface ShopItem {
   name: string;
   cost: string;
   description: string;
+  /** How many are on the shelf now. Missing when the shop doesn't count them. */
+  stock?: number;
+  /** How many a restock fills the shelf back up to. Missing when the item isn't restocked. */
+  maxStock?: number;
 }
 
 /** A non-player character in one campaign. */

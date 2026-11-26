@@ -2,8 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Button, Card } from '../../components/ui';
-import { db, deleteLocation } from '../../db';
-import { ancestorsOf, childrenOf, itemSubtitle, itemSummary, npcsAt, siblingsOf } from '../../logic';
+import { db, deleteLocation, restockLocation } from '../../db';
+import { ancestorsOf, childrenOf, itemSubtitle, itemSummary, needsRestock, npcsAt, siblingsOf, stockLabel } from '../../logic';
 import type { Item, Location, ShopItem } from '../../models';
 import { LocationLink, NpcLink, useLocations, useNpcs } from './shared';
 
@@ -34,34 +34,56 @@ function ShopItemName({ row, item }: { row: ShopItem; item: Item | undefined }) 
   );
 }
 
-function ShopTable({ items }: { items: ShopItem[] }) {
+function ShopTable({ locationId, items }: { locationId: string; items: ShopItem[] }) {
   const ids = items.map((i) => i.itemId).filter((i): i is string => !!i);
   const listed = useLiveQuery(
     async () => new Map((await db.items.bulkGet(ids)).filter((i): i is Item => !!i).map((i) => [i.id, i])),
     [ids.join()],
   );
+  const counted = items.some((i) => stockLabel(i));
+  const restockable = items.some((i) => i.maxStock !== undefined);
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
-        <thead className="text-xs text-stone-500">
-          <tr>
-            <th scope="col" className="py-1 pr-3 font-medium">Item</th>
-            <th scope="col" className="py-1 pr-3 font-medium">Cost</th>
-            <th scope="col" className="py-1 font-medium">Description</th>
-          </tr>
-        </thead>
-        <tbody className="align-top text-stone-200">
-          {items.map((i) => (
-            <tr key={i.id} className="border-t border-stone-800">
-              <td className="py-1.5 pr-3">
-                <ShopItemName row={i} item={i.itemId ? listed?.get(i.itemId) : undefined} />
-              </td>
-              <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums text-amber-200">{i.cost}</td>
-              <td className="py-1.5 text-stone-300">{i.description}</td>
+    <div className="flex flex-col gap-2">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="text-xs text-stone-500">
+            <tr>
+              <th scope="col" className="py-1 pr-3 font-medium">Item</th>
+              <th scope="col" className="py-1 pr-3 font-medium">Cost</th>
+              {counted && <th scope="col" className="py-1 pr-3 font-medium">Stock</th>}
+              <th scope="col" className="py-1 font-medium">Description</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="align-top text-stone-200">
+            {items.map((i) => (
+              <tr key={i.id} className={`border-t border-stone-800 ${i.stock === 0 ? 'opacity-60' : ''}`}>
+                <td className="py-1.5 pr-3">
+                  <ShopItemName row={i} item={i.itemId ? listed?.get(i.itemId) : undefined} />
+                </td>
+                <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums text-amber-200">{i.cost}</td>
+                {counted && (
+                  <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums">
+                    {stockLabel(i)}
+                    {i.stock === 0 && <span className="ml-1.5 text-xs text-red-400">sold out</span>}
+                  </td>
+                )}
+                <td className="py-1.5 text-stone-300">{i.description}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {restockable && (
+        <div>
+          <Button
+            disabled={!needsRestock(items)}
+            title={needsRestock(items) ? 'Fill every item back up to its maximum stock' : 'Everything is fully stocked'}
+            onClick={() => void restockLocation(locationId)}
+          >
+            Restock
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -146,7 +168,7 @@ export function LocationPage() {
           {loc.shop?.length ? (
             <Card>
               <Section title="Shop">
-                <ShopTable items={loc.shop} />
+                <ShopTable locationId={loc.id} items={loc.shop} />
               </Section>
             </Card>
           ) : null}

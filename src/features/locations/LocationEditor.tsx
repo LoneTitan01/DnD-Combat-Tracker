@@ -11,6 +11,7 @@ import {
   findNpcByName,
   itemSubtitle,
   parentOptions,
+  parseStock,
   placeLabel,
   shopItemFor,
   validateLocation,
@@ -165,6 +166,34 @@ function NpcList({
 
 const ITEM_NAMES = 'shop-item-names';
 
+/** A stock count; empty means the shop doesn't count it. */
+function StockInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: number | undefined;
+  onChange: (n: number | undefined) => void;
+}) {
+  return (
+    <TextInput
+      type="number"
+      min={0}
+      step={1}
+      inputMode="numeric"
+      aria-label={label}
+      title={label.replace(/^Item \d+ /, '')}
+      placeholder={placeholder}
+      value={value ?? ''}
+      className="w-20 min-w-0 tabular-nums"
+      onChange={(e) => onChange(parseStock(e.target.value))}
+    />
+  );
+}
+
 /**
  * The shop table: one row per item for sale, in the order they're listed. Items are picked from the
  * item list and start at its price, which each shop can change.
@@ -184,7 +213,10 @@ function ShopEditor({ items, catalog, onChange }: { items: ShopItem[]; catalog: 
     <section aria-label="Shop" className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-xs text-stone-400">
-          Shop<span className="ml-1.5 text-stone-500">optional: what's for sale here</span>
+          Shop
+          <span className="ml-1.5 text-stone-500">
+            optional: what's for sale here. Leave Stock and Max empty for items the shop doesn't count; restocking fills each item back up to its Max.
+          </span>
         </h2>
       </div>
       {items.length > 0 && (
@@ -214,6 +246,8 @@ function ShopEditor({ items, catalog, onChange }: { items: ShopItem[]; catalog: 
                 className="w-24 min-w-0 flex-1 sm:flex-none"
                 onChange={(e) => set(item.id, { cost: e.target.value })}
               />
+              <StockInput label={`Item ${n + 1} in stock`} placeholder="Stock" value={item.stock} onChange={(stock) => set(item.id, { stock })} />
+              <StockInput label={`Item ${n + 1} max stock`} placeholder="Max" value={item.maxStock} onChange={(maxStock) => set(item.id, { maxStock })} />
               <Button
                 variant="ghost"
                 aria-label={`Remove item ${n + 1}`}

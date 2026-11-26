@@ -85,7 +85,9 @@ async function newItem(page: Page, name: string, category: string, cost: string)
   await page.getByRole('combobox', { name: 'Category' }).selectOption(category);
   await page.getByRole('textbox', { name: 'Cost' }).fill(cost);
   await page.getByRole('button', { name: 'Save item' }).click();
-  await expect(page).toHaveURL(/#\/items\/[^/]+$/);
+  // Wait for the saved item's page, so the next navigation isn't undone by the editor's own.
+  // (The editor's preview has the same heading, so look for the page's Edit button instead.)
+  await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
 }
 
 test('locations: an optional shop table with items from the item list', async ({ page }) => {
@@ -96,7 +98,8 @@ test('locations: an optional shop table with items from the item list', async ({
   await newItem(page, 'Longsword', 'weapon', '15 gp');
   await newItem(page, 'Rope (50 ft)', 'gear', '1 gp');
 
-  await page.goto('#/locations/new');
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Locations' }).click();
+  await page.getByRole('button', { name: 'New location' }).click();
   await page.getByRole('textbox', { name: 'Name' }).fill('The Gilded Anvil');
   await expect(page.getByRole('list', { name: 'Shop items' })).toHaveCount(0);
 
@@ -117,15 +120,29 @@ test('locations: an optional shop table with items from the item list', async ({
   await picker.fill('Rope (50 ft)');
   await picker.press('Enter');
   await expect(page.getByRole('textbox', { name: 'Item 2 cost' })).toHaveValue('1 gp');
+
+  // Stock is optional: the longswords are sold out until a restock; rope is counted but never restocked.
+  await page.getByRole('spinbutton', { name: 'Item 1 in stock' }).fill('0');
+  await page.getByRole('spinbutton', { name: 'Item 1 max stock' }).fill('3');
+  await page.getByRole('spinbutton', { name: 'Item 2 in stock' }).fill('10');
   await page.getByRole('button', { name: 'Save location' }).click();
   await expect(page.getByRole('heading', { name: 'The Gilded Anvil', level: 1 })).toBeVisible();
 
   const shop = page.getByRole('region', { name: 'Shop' });
   await expect(shop.getByRole('row')).toHaveText([
-    /Item\s*Cost\s*Description/,
-    /Longsword\s*Simple melee weapon, 1d6 slashing\s*20 gp\s*Dwarven steel, slightly used/,
-    /Rope \(50 ft\)\s*Adventuring gear\s*1 gp/,
+    /Item\s*Cost\s*Stock\s*Description/,
+    /Longsword\s*Simple melee weapon, 1d6 slashing\s*20 gp\s*0 \/ 3\s*sold out\s*Dwarven steel, slightly used/,
+    /Rope \(50 ft\)\s*Adventuring gear\s*1 gp\s*10/,
   ]);
+
+  // Restocking fills items back up to their maximum, and sticks.
+  await shop.getByRole('button', { name: 'Restock' }).click();
+  await expect(shop.getByRole('row').nth(1)).toContainText('3 / 3');
+  await expect(shop.getByRole('row').nth(1)).not.toContainText('sold out');
+  await expect(shop.getByRole('button', { name: 'Restock' })).toBeDisabled();
+  await page.reload();
+  await expect(shop.getByRole('row').nth(1)).toContainText('3 / 3');
+  await expect(shop.getByRole('row').nth(2)).toContainText(/1 gp\s*10/);
 
   // Item names link to the item list.
   await shop.getByRole('link', { name: 'Longsword' }).click();
