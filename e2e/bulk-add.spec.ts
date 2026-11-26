@@ -170,3 +170,26 @@ A torch burns for 1 hour, providing bright light in a 20-foot radius.`);
   await expect(page.getByText('Heavy armor')).toBeVisible();
   await expect(page.getByText('Str 13')).toBeVisible();
 });
+
+test('bulk add items: the table import reads every row as an item', async ({ page }) => {
+  await page.goto('#/items/bulk');
+  await page.getByRole('radio', { name: 'Table, one item per row' }).click();
+  await page.getByRole('textbox', { name: 'Table' }).fill(`Name Cost Weight
+Adventuring Gear
+Torch
+Rope, hempen (50 feet) 1 gp 10 lb.
+Simple Melee Weapons
+Dagger 2 gp 1d4 piercing 1 lb. Finesse, light, thrown (range 20/60)`);
+  await page.getByRole('button', { name: 'Read 3 items' }).click();
+
+  const tabs = page.getByRole('navigation', { name: 'items to review' });
+  await expect(tabs.getByRole('button')).toHaveCount(3);
+  await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Torch');
+  await expect(page.getByRole('combobox', { name: 'Category' })).toHaveValue('gear');
+
+  await page.getByRole('button', { name: 'Approve all (3)' }).click();
+  await expect(page.getByText('All reviewed: 3 items added.')).toBeVisible();
+  await page.getByRole('link', { name: 'Items', exact: true }).first().click();
+  await expect(page.getByRole('link', { name: 'Rope, hempen (50 feet)' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Dagger' })).toBeVisible();
+});
