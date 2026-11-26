@@ -92,3 +92,34 @@ test('NPCs live at locations: pick a place, see them there, search, move, delete
   await expect(page.getByRole('textbox', { name: /^Name for / })).toHaveCount(3);
   await expect(page.getByRole('combobox', { name: 'Location for Aubrey' })).toHaveValue(/.+/);
 });
+
+test('NPCs have notes: write them, find them by search, open them from a location', async ({ page }) => {
+  await newLocation(page, 'Phandalin');
+  await page.goto('#/npcs');
+  await addNpc(page, 'Sister Garaele', 'Phandalin');
+  await addNpc(page, 'Toblen', 'Phandalin');
+
+  // Notes start closed; opening shows an editor that saves when you leave it.
+  await page.getByRole('button', { name: 'Notes for Sister Garaele' }).click();
+  const notes = page.getByRole('textbox', { name: 'Notes text for Sister Garaele' });
+  await notes.fill('Harper agent.\nWants the banshee Agatha found.');
+  await notes.blur();
+  await page.getByRole('button', { name: 'Notes for Sister Garaele' }).click();
+  await expect(notes).toBeHidden();
+  // Closed, the first line shows under their name.
+  await expect(page.getByText('Harper agent.', { exact: true })).toBeVisible();
+
+  // Search covers notes.
+  await page.getByRole('searchbox', { name: 'Search NPCs' }).fill('banshee');
+  await expect(page.getByRole('textbox', { name: /^Name for / })).toHaveCount(1);
+  await expect(page.getByRole('textbox', { name: 'Name for Sister Garaele' })).toBeVisible();
+
+  // Following their link from the location lands on just them, notes open, and they survived a reload.
+  await page.goto('#/locations');
+  await page.reload();
+  await page.getByRole('link', { name: 'Phandalin' }).click();
+  await page.getByRole('region', { name: 'NPCs' }).getByRole('link', { name: 'Sister Garaele' }).click();
+  await expect(page.getByRole('textbox', { name: 'Notes text for Sister Garaele' })).toHaveValue(
+    'Harper agent.\nWants the banshee Agatha found.',
+  );
+});

@@ -52,6 +52,10 @@ describe('filterNpcs', () => {
     // Aubrey's shop is inside Leilon, so she counts as living in Leilon too.
     expect(filterNpcs(npcs, 'leilon', places).map((n) => n.id)).toEqual(['a', 'r']);
   });
+  it('matches their notes', () => {
+    const noted = [...npcs, { id: 'g', name: 'Gundren', notes: 'Knows where WAVE ECHO CAVE is' }];
+    expect(filterNpcs(noted, 'wave echo', places).map((n) => n.id)).toEqual(['g']);
+  });
   it('returns everyone for a blank search', () => {
     expect(filterNpcs(npcs, '  ', places)).toHaveLength(4);
   });

@@ -26,11 +26,16 @@ export function findNpcByName<T extends Pick<Npc, 'name'>>(npcs: readonly T[], n
   return k ? npcs.find((n) => key(n.name) === k) : undefined;
 }
 
-/** NPCs whose name or location (including the places it's inside) contains the search text, ignoring case. */
-export function filterNpcs<T extends Pick<Npc, 'name' | 'locationId'>>(npcs: readonly T[], query: string, locations: readonly Location[]): T[] {
+/** NPCs whose name, location (including the places it's inside) or notes contain the search text, ignoring case. */
+export function filterNpcs<T extends Pick<Npc, 'name' | 'locationId' | 'notes'>>(npcs: readonly T[], query: string, locations: readonly Location[]): T[] {
   const q = key(query);
   if (!q) return [...npcs];
-  return npcs.filter((n) => n.name.toLowerCase().includes(q) || placeLabel(locations, n.locationId).toLowerCase().includes(q));
+  return npcs.filter(
+    (n) =>
+      n.name.toLowerCase().includes(q) ||
+      placeLabel(locations, n.locationId).toLowerCase().includes(q) ||
+      (n.notes ?? '').toLowerCase().includes(q),
+  );
 }
 
 /**
