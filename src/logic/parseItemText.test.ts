@@ -128,6 +128,31 @@ Armor Class: +1`);
     expect(question!.choices[1]!.apply(value).armor).toMatchObject({ type: 'heavy', ac: '16', strength: 13 });
   });
 
+  it('reads a magic item’s rarity and attunement', () => {
+    const { value, question } = parseItemText(`Flame Tongue
+Weapon (longsword), rare (requires attunement by a paladin)
+You can use a bonus action to speak this magic sword's command word.`);
+    expect(question).toBeUndefined();
+    expect(value.category).toBe('weapon');
+    expect(value.weapon).toMatchObject({ class: 'martial', range: 'melee' });
+    expect(value.magic).toMatchObject({ rarity: 'rare', attunement: true, attunementBy: 'by a paladin', bonus: 0 });
+    expect(value.description).toBe("You can use a bonus action to speak this magic sword's command word.");
+
+    const cloak = parseItemText('Cloak of Elvenkind\nWondrous item, uncommon (requires attunement)').value;
+    expect(cloak).toMatchObject({ category: 'gear', magic: { rarity: 'uncommon', attunement: true, attunementBy: '' } });
+  });
+
+  it('reads a +N bonus from the name, with the rarity it usually has', () => {
+    const { value } = parseItemText('+2 Shield\nArmor (shield)');
+    expect(value).toMatchObject({ category: 'armor', armor: { type: 'shield' }, magic: { bonus: 2, rarity: 'rare', attunement: false } });
+    expect(parseItemText('Longsword 15 gp 1d8 slashing 3 lb.').value.magic).toBeUndefined();
+  });
+
+  it('reads rarity and attunement labels', () => {
+    const { value } = parseItemText('Ring of Warmth\nRarity: Uncommon\nAttunement: Required');
+    expect(value.magic).toMatchObject({ rarity: 'uncommon', attunement: true });
+  });
+
   it('warns when it is empty', () => {
     expect(parseItemText('  ').warnings).toEqual(['Nothing to read: the text is empty.']);
   });

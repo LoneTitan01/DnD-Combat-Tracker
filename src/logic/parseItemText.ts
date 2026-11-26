@@ -7,7 +7,9 @@ import {
   ARMOR_TYPES,
   DAMAGE_TYPES,
   ITEM_CATEGORIES,
+  ITEM_RARITIES,
   type ArmorType,
+  type ItemRarity,
   type DamageType,
   type Item,
   type ItemCategory,
@@ -15,7 +17,7 @@ import {
   type WeaponClass,
   type WeaponRange,
 } from '../models';
-import { blankItem, DEFAULT_ARMOR, DEFAULT_TOOL, DEFAULT_WEAPON, withCategory } from './items';
+import { blankItem, DEFAULT_ARMOR, DEFAULT_MAGIC, DEFAULT_TOOL, DEFAULT_WEAPON, MAX_MAGIC_BONUS, withCategory } from './items';
 import { append, cleanLines, type Parsed } from './parseText';
 
 export const ITEM_CATEGORY_NAMES: Record<ItemCategory, string> = {
@@ -149,6 +151,8 @@ const LABELS = [
   ['price', 'cost'],
   ['cost', 'cost'],
   ['type', 'type'],
+  ['rarity', 'rarity'],
+  ['attunement', 'attunement'],
   ['str', 'strength'],
   ['ac', 'ac'],
 ] as const;
@@ -204,7 +208,27 @@ interface Found {
   strength?: number;
   stealth?: boolean;
   kind?: Kind;
+  /** Set for a magic item; '' when its rarity varies. */
+  rarity?: ItemRarity | '';
+  /** Who can attune to it ("by a wizard"), '' for anyone; undefined when it needs no attunement. */
+  attunement?: string;
 }
+
+const RARITY_RE = /,\s*(very rare|uncommon|common|rare|legendary|artifact|rarity varies)\b(.*)$/i;
+const ATTUNEMENT_RE = /requires attunement([^)]*)/i;
+
+/** "rare", " (requires attunement by a cleric)" → the rarity and attunement of a magic item. */
+function readRarity(rarity: string, rest: string, f: Found) {
+  const r = rarity.toLowerCase();
+  if (r) f.rarity = (ITEM_RARITIES as readonly string[]).includes(r) ? (r as ItemRarity) : '';
+  else f.rarity ??= '';
+  const attune = ATTUNEMENT_RE.exec(rest);
+  if (attune) f.attunement = attune[1]!.trim();
+}
+
+/** "+1 Longsword", "Shield, +2": the enchantment bonus in a magic weapon's or armor's name. */
+const nameBonus = (name: string): number => Math.min(MAX_MAGIC_BONUS, Number(/(?:^|[\s,(])\+(\d+)\b/.exec(name)?.[1] ?? 0));
+const RARITY_FOR_BONUS: Record<number, ItemRarity> = { 1: 'uncommon', 2: 'rare', 3: 'very rare' };
 
 /** Reads the cost, weight, damage, AC and so on out of a table row (everything after the name). */
 function readRow(rest: string, f: Found) {
@@ -272,6 +296,14 @@ function readLabel(label: Label, raw: string, f: Found): boolean {
     case 'stealth':
       f.stealth = /disadvantage/i.test(value);
       return true;
+    case 'rarity':
+      readRarity(/^(very rare|uncommon|common|rare|legendary|artifact)\b/i.exec(value)?.[1] ?? '', value, f);
+      return true;
+    case 'attunement':
+      if (/^(no|none|not required)\b/i.test(value) || !value) return true;
+      f.rarity ??= '';
+      f.attunement = /\bby\b.*/i.exec(value)?.[0] ?? '';
+      return true;
     case 'type': {
       const kind = kindFromLine(value);
       if (!kind) return false;
@@ -313,11 +345,22 @@ export function parseItemText(text: string): Parsed<Item> {
       readRow(` ${line}`, f);
       continue;
     }
-    if (!description && !f.kind) {
-      // "Wondrous item, rare (requires attunement)": the rarity isn't part of the kind.
-      const kind = kindFromLine(line.replace(/,\s*(common|uncommon|rare|very rare|legendary|artifact|rarity varies)\b.*$/i, ''));
+    if (!description) {
+      // "Wondrous item, rare (requires attunement by a wizard)": the kind, then the rarity.
+      const rarity = RARITY_RE.exec(line);
+      const head = rarity ? line.slice(0, rarity.index) : line;
+      const kind = f.kind ? null : kindFromLine(head);
+      if (rarity && head.split(' ').length <= 6) {
+        readRarity(rarity[1]!, rarity[2]!, f);
+        if (kind) f.kind = kind;
+        continue;
+      }
       if (kind) {
         f.kind = kind;
+        continue;
+      }
+      if (ATTUNEMENT_RE.test(line) && line.length < 60) {
+        readRarity('', line, f);
         continue;
       }
     }
@@ -391,6 +434,20 @@ export function parseItemText(text: string): Parsed<Item> {
   }
   if (category === 'tool' || byName?.category === 'tool' || kind?.category === 'tool') {
     item.tool = { type: hint?.toolType ?? byName?.toolType ?? (ARTISAN.test(baseName(item.name)) ? 'artisan' : f.kind ? 'other' : DEFAULT_TOOL.type) };
+  }
+
+  // Magic: a rarity line, an attunement note, or a "+1" in a weapon's or armor's name.
+  const bonus = nameBonus(item.name);
+  if (f.rarity !== undefined || (bonus && (isWeapon || isArmor))) {
+    item.magic = {
+      ...DEFAULT_MAGIC,
+      rarity: f.rarity || RARITY_FOR_BONUS[bonus] || DEFAULT_MAGIC.rarity,
+      attunement: f.attunement !== undefined,
+      attunementBy: f.attunement ?? '',
+      bonus,
+      effects: [],
+    };
+    if (f.rarity === '') warnings.push(`Its rarity varies; it was set to ${item.magic.rarity}.`);
   }
 
   const value = category ? withCategory(item, category) : item;
