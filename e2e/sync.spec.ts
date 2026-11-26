@@ -60,14 +60,14 @@ async function fakeGoogle(context: BrowserContext, drive: FakeDrive) {
 const status = (page: Page) => page.getByRole('status', { name: 'Sync status' });
 
 async function connect(page: Page) {
-  await page.goto('#/sync');
+  await page.goto('#/settings');
   await page.getByRole('button', { name: 'Connect Google account' }).click();
   await expect(status(page)).toHaveText('Synced just now');
   await expect(page.getByText('dm@example.com')).toBeVisible();
 }
 
 async function syncNow(page: Page) {
-  await page.goto('#/sync');
+  await page.goto('#/settings');
   await page.getByRole('button', { name: 'Sync now' }).click();
   await expect(status(page)).toHaveText('Synced just now');
 }
@@ -88,7 +88,8 @@ test('sync through a Google account: two devices merge, deletions spread, reconn
   const laptop = await laptopCtx.newPage();
   laptop.on('dialog', (d) => void d.accept());
   await seed(laptop);
-  await laptop.goto('#/sync');
+  await laptop.goto('#/sync'); // old link redirects to Settings
+  await expect(laptop).toHaveURL(/#\/settings$/);
   await expect(status(laptop)).toHaveText('Off');
   await expect(laptop.getByRole('link', { name: /^Sync:/ })).toHaveCount(0); // no header badge while off
   await connect(laptop);
@@ -130,7 +131,7 @@ test('sync through a Google account: two devices merge, deletions spread, reconn
 
   // An expired Google sign-in pauses sync; the header's Reconnect button resumes it.
   drive.expired = true;
-  await laptop.goto('#/sync');
+  await laptop.goto('#/settings');
   await laptop.getByRole('button', { name: 'Sync now' }).click();
   await expect(status(laptop)).toHaveText('Paused: Google needs you to sign in again');
   drive.expired = false;
@@ -145,7 +146,7 @@ test('sync through a Google account: two devices merge, deletions spread, reconn
   await expect(laptop.getByRole('textbox', { name: 'Name for Eve' })).toBeVisible();
 
   // Deleting the synced copy removes the Drive file.
-  await tablet.goto('#/sync');
+  await tablet.goto('#/settings');
   await tablet.getByRole('button', { name: 'Delete synced copy' }).click();
   await expect(status(tablet)).toHaveText('Off');
   expect(drive.exists).toBe(false);

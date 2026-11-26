@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Button, Card, PageHeader, TextArea } from '../../components/ui';
 import { useShortcuts } from '../../components/shortcuts';
+import { useHotkeys } from '../settings/hotkeys';
 import { newId, type Parsed } from '../../logic';
 
 type Status = 'pending' | 'approved' | 'discarded';
@@ -82,7 +83,8 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
     if (items.length === 0) return;
     setIndex((i + items.length) % items.length);
   };
-  useShortcuts(phase === 'review' ? { ArrowLeft: () => go(index - 1), ArrowRight: () => go(index + 1) } : {});
+  const hotkeys = useHotkeys();
+  useShortcuts(phase === 'review' ? { [hotkeys.bulkPrev]: () => go(index - 1), [hotkeys.bulkNext]: () => go(index + 1) } : {});
 
   const update = (key: string, patch: Partial<Item<T>>) =>
     setItems((list) => list.map((i) => (i.key === key ? { ...i, ...patch } : i)));

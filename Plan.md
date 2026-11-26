@@ -243,7 +243,7 @@ Build in this order. Each milestone ends with something usable at the table.
      - When a duration runs out, the condition is removed, logged ("Goblin 2 is no longer prone") and listed in a notice under the turn bar until the next turn change.
      - Row badges show the rounds left ("prone · 2").
    - Damage types (added Nov 13, 2026): the side panel and the multi-target panel take a damage type and pick each creature's modifier from its stat block's resistances, vulnerabilities and immunities. In multi-target, each target follows its own stat block ("Immune from stat block") until you pick its modifier by hand; changing the damage type drops those hand-picked choices.
-   - Keyboard shortcuts: `N` next turn, `M` multi-target, `Esc` closes the panel or leaves multi-target. They're ignored while typing or with Ctrl, Alt or ⌘ held. `Esc` in a text box first leaves the box.
+   - Keyboard shortcuts: `N` next turn, `M` multi-target, `Esc` closes the panel or leaves multi-target. They're ignored while typing or with Ctrl, Alt or ⌘ held. `Esc` in a text box first leaves the box. All of them (and the bulk-add ←/→) can be rebound on the Settings page; bindings are per device (localStorage), and picking a key another action in the same screen uses swaps the two.
    - PWA install: 192 and 512 px PNG icons plus a maskable one, an Apple touch icon, and an "Install app" button in the header when the browser offers it. Browser tests confirm that Chromium reports no installability errors and that the app (including a new tab opened while offline) loads and keeps its data offline. That is the first in-browser check of Milestone 1's offline requirement.
 
 ## Google sync (added Nov 13, 2026)
@@ -258,8 +258,8 @@ Optional sync of all data between one DM's devices through their Google account,
 - **Round trip:** download, merge into IndexedDB in one transaction (writing only what changed), then upload if the Drive copy is behind. The first sync on a device with existing data merges both sides; nothing is overwritten.
 - **When:** on app start, 4 seconds after any local change, when the app comes back into view or online, every 5 minutes, and from "Sync now". Writes made by sync don't trigger another upload.
 - **Sign-in:** the Google Identity Services token flow, all in the browser. Tokens last about an hour and can only be renewed from a click, so an expired sign-in pauses sync and the header shows **Reconnect sync**. The token is kept for the tab session only; the "sync on" setting and account email are kept in local storage.
-- **Setup:** a Google OAuth client ID, provided at build time as `VITE_GOOGLE_CLIENT_ID` (a repo variable for the GitHub Pages build). Without one, the Sync page explains that sync isn't available. Steps are in the README.
-- **UI:** a Sync page (connect, status, account, Sync now, Disconnect, Delete synced copy, how it works) and a header badge (Synced / Syncing… / Sync failed / Reconnect sync), hidden while sync is off.
+- **Setup:** a Google OAuth client ID, provided at build time as `VITE_GOOGLE_CLIENT_ID` (a repo variable for the GitHub Pages build). Without one, the Sync section of Settings explains that sync isn't available. Steps are in the README.
+- **UI:** a Sync section on the Settings page (connect, status, account, Sync now, Disconnect, Delete synced copy, how it works) and a header badge (Synced / Syncing… / Sync failed / Reconnect sync), hidden while sync is off.
 - **Limits:**
   - An open combat screen keeps its combat in memory and saves over changes to that combat from another device, so run each combat on one device at a time.
   - Timestamps come from each device's clock.

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router';
 import { ensureCampaign, seedSrdSpells } from '../db';
 import { CampaignBar } from '../features/campaigns/CampaignBar';
-import { SyncBadge } from '../features/sync/SyncPage';
+import { SyncBadge } from '../features/settings/SyncSettings';
 import { startSync } from '../sync/manager';
 import { InstallButton } from './InstallButton';
 
@@ -15,7 +15,7 @@ const NAV = [
   { to: '/party', label: 'Party' },
   { to: '/locations', label: 'Locations' },
   { to: '/npcs', label: 'NPCs' },
-  { to: '/sync', label: 'Sync' },
+  { to: '/settings', label: 'Settings' },
 ];
 
 export function AppShell() {

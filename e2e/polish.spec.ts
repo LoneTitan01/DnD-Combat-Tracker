@@ -195,6 +195,50 @@ test('keyboard shortcuts: N next turn (not while typing), M multi-target, Esc cl
   await expect(turnOrder(page).getByRole('listitem')).toHaveCount(5);
 });
 
+test('shortcuts can be rebound on the Settings page, and a clash swaps the two keys', async ({ page }) => {
+  await page.goto('#/settings');
+  const shortcut = (name: string) => page.getByLabel(`Shortcut for ${name}`, { exact: true });
+  await expect(shortcut('Next turn')).toHaveText('N');
+
+  // Next turn → T.
+  await page.getByRole('button', { name: 'Change shortcut for Next turn' }).click();
+  await page.keyboard.press('Shift');
+  await expect(page.getByText('Shift can’t be a shortcut.')).toBeVisible();
+  await page.keyboard.press('t');
+  await expect(shortcut('Next turn')).toHaveText('T');
+
+  // Multi-target → T takes it from Next turn, which gets M.
+  await page.getByRole('button', { name: 'Change shortcut for Multi-target damage' }).click();
+  await page.keyboard.press('T');
+  await expect(shortcut('Multi-target damage')).toHaveText('T');
+  await expect(shortcut('Next turn')).toHaveText('M');
+
+  // Esc cancels without changing anything.
+  await page.getByRole('button', { name: 'Change shortcut for Next turn' }).click();
+  await page.keyboard.press('Escape');
+  await expect(shortcut('Next turn')).toHaveText('M');
+  await expect(page.getByRole('button', { name: 'Change shortcut for Next turn' })).toBeVisible();
+
+  // The tracker uses the new keys and shows them.
+  await runningCombat(page);
+  await expect(page.getByRole('button', { name: 'Next turn →' })).toHaveAttribute('aria-keyshortcuts', 'M');
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('n');
+  await expect(currentTurn(page)).toHaveAttribute('aria-label', 'Aria');
+  await page.keyboard.press('m');
+  await expect(currentTurn(page)).toHaveAttribute('aria-label', 'Goblin 1');
+  await page.keyboard.press('t');
+  await expect(page.getByRole('heading', { name: 'Multi-target damage' })).toBeVisible();
+
+  // Reset all brings the defaults back, and they survive a reload.
+  await page.goto('#/settings');
+  await page.getByRole('button', { name: 'Reset all to defaults' }).click();
+  await page.reload();
+  await expect(shortcut('Next turn')).toHaveText('N');
+  await expect(shortcut('Multi-target damage')).toHaveText('M');
+  await expect(page.getByRole('button', { name: 'Reset all to defaults' })).toBeDisabled();
+});
+
 test('condition durations count down on the right turns and announce when they end', async ({ page }) => {
   await runningCombat(page);
   // Order: Aria 20, Goblin 1 14, Goblin 2 13, Dragon 1 12, Brom 8. It's Aria's turn.
