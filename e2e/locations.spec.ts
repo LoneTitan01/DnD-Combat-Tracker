@@ -78,3 +78,44 @@ test('locations: nest places, link siblings and NPCs, navigate, delete', async (
     /^Town Hall/,
   ]);
 });
+
+test('locations: an optional shop table with items, costs and descriptions', async ({ page }) => {
+  await page.goto('#/locations/new');
+  await page.getByRole('textbox', { name: 'Name' }).fill('The Gilded Anvil');
+  await expect(page.getByRole('list', { name: 'Shop items' })).toHaveCount(0);
+
+  // A blank row left at the end is dropped on save.
+  await page.getByRole('button', { name: 'Add a shop' }).click();
+  await page.getByRole('textbox', { name: 'Item 1 name' }).fill('Longsword');
+  await page.getByRole('textbox', { name: 'Item 1 cost' }).fill('15 gp');
+  await page.getByRole('textbox', { name: 'Item 1 description' }).fill('Dwarven steel, slightly used');
+  await page.getByRole('button', { name: 'Add item' }).click();
+  await page.getByRole('textbox', { name: 'Item 2 cost' }).fill('1 gp');
+  await page.getByRole('button', { name: 'Save location' }).click();
+  await expect(page.getByText('Give every shop item a name.')).toBeVisible();
+  await page.getByRole('textbox', { name: 'Item 2 name' }).fill('Rope (50 ft)');
+  await page.getByRole('button', { name: 'Add item' }).click();
+  await page.getByRole('button', { name: 'Save location' }).click();
+  await expect(page.getByRole('heading', { name: 'The Gilded Anvil', level: 1 })).toBeVisible();
+
+  const shop = page.getByRole('region', { name: 'Shop' });
+  await expect(shop.getByRole('row')).toHaveText([
+    /Item\s*Cost\s*Description/,
+    /Longsword\s*15 gp\s*Dwarven steel, slightly used/,
+    /Rope \(50 ft\)\s*1 gp/,
+  ]);
+
+  // Search finds the place by what it sells.
+  await page.goto('#/locations');
+  await page.getByRole('searchbox', { name: 'Search locations' }).fill('longsword');
+  await expect(page.getByRole('list', { name: 'Locations' }).getByRole('listitem')).toHaveText([/The Gilded Anvil/]);
+
+  // Removing every item removes the shop.
+  await page.getByRole('link', { name: 'The Gilded Anvil' }).click();
+  await page.getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('button', { name: 'Remove item 2' }).click();
+  await page.getByRole('button', { name: 'Remove item 1' }).click();
+  await page.getByRole('button', { name: 'Save location' }).click();
+  await expect(page.getByRole('heading', { name: 'The Gilded Anvil', level: 1 })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Shop' })).toHaveCount(0);
+});

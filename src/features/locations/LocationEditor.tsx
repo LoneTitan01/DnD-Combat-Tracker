@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { Button, Card, Field, PageHeader, Select, TextArea, TextInput } from '../../components/ui';
 import { db, saveLocation, setLocationNpcs } from '../../db';
-import { blankLocation, childOptions, childrenOf, findNpcByName, parentOptions, placeLabel, validateLocation } from '../../logic';
-import type { ID, Location, Npc } from '../../models';
+import { blankLocation, blankShopItem, childOptions, childrenOf, findNpcByName, parentOptions, placeLabel, validateLocation } from '../../logic';
+import type { ID, Location, Npc, ShopItem } from '../../models';
 import { useLocations, useNpcs } from './shared';
 
 interface Draft {
@@ -151,6 +151,62 @@ function NpcList({
   );
 }
 
+/** The shop table: one row per item for sale, in the order they're listed. */
+function ShopEditor({ items, onChange }: { items: ShopItem[]; onChange: (items: ShopItem[]) => void }) {
+  const set = (id: ID, patch: Partial<ShopItem>) => onChange(items.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+  const add = () => onChange([...items, blankShopItem()]);
+  return (
+    <section aria-label="Shop" className="flex flex-col gap-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-xs text-stone-400">
+          Shop<span className="ml-1.5 text-stone-500">optional: what's for sale here</span>
+        </h2>
+      </div>
+      {items.length > 0 && (
+        <ol aria-label="Shop items" className="flex flex-col gap-3">
+          {items.map((item, n) => (
+            <li key={item.id} className="flex flex-wrap items-start gap-2 border-b border-stone-800 pb-3 last:border-0 last:pb-0">
+              <TextInput
+                aria-label={`Item ${n + 1} name`}
+                placeholder="Item"
+                value={item.name}
+                autoFocus={n === items.length - 1 && !item.name && !item.cost && !item.description}
+                className="min-w-40 flex-[2]"
+                onChange={(e) => set(item.id, { name: e.target.value })}
+              />
+              <TextInput
+                aria-label={`Item ${n + 1} cost`}
+                placeholder="Cost"
+                value={item.cost}
+                className="w-24 min-w-0 flex-1 sm:flex-none"
+                onChange={(e) => set(item.id, { cost: e.target.value })}
+              />
+              <Button
+                variant="ghost"
+                aria-label={`Remove item ${n + 1}`}
+                className="px-2"
+                onClick={() => onChange(items.filter((i) => i.id !== item.id))}
+              >
+                ×
+              </Button>
+              <TextInput
+                aria-label={`Item ${n + 1} description`}
+                placeholder="Description"
+                value={item.description}
+                className="w-full"
+                onChange={(e) => set(item.id, { description: e.target.value })}
+              />
+            </li>
+          ))}
+        </ol>
+      )}
+      <div>
+        <Button onClick={add}>{items.length ? 'Add item' : 'Add a shop'}</Button>
+      </div>
+    </section>
+  );
+}
+
 export function LocationEditor() {
   const { id } = useParams();
   const [search] = useSearchParams();
@@ -287,6 +343,10 @@ export function LocationEditor() {
               onChange={(e) => set({ notes: e.target.value })}
             />
           </Field>
+        </Card>
+
+        <Card>
+          <ShopEditor items={loc.shop ?? []} onChange={(shop) => set({ shop })} />
         </Card>
 
         <div className="fixed bottom-0 left-[var(--nav-width,0px)] right-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">

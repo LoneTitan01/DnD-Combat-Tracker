@@ -82,6 +82,31 @@ describe('filterLocations', () => {
     expect(names(filterLocations(all, 'bo', npcs))).toEqual(['Inn']);
     expect(names(filterLocations(all, 'upstairs'))).toEqual(['Inn']);
   });
+
+  it('matches shop items', () => {
+    const stocked = { ...shop, shop: [{ id: 'i', name: 'Potion of Healing', cost: '50 gp', description: '' }] };
+    expect(names(filterLocations([stocked, inn], 'potion'))).toEqual(["Aubrey's Peculiarities Shoppe"]);
+  });
+});
+
+describe('shop items', () => {
+  let n = 0;
+  const item = (name: string, cost = '', description = '') => ({ id: `i${++n}`, name, cost, description });
+
+  it('trims items and drops blank rows', () => {
+    const rope = item(' Rope ', ' 1 gp ', ' 50 ft ');
+    const cleaned = cleanLocation({ ...shop, shop: [rope, item('', ' ', '')] });
+    expect(cleaned.shop).toEqual([{ id: rope.id, name: 'Rope', cost: '1 gp', description: '50 ft' }]);
+  });
+
+  it('leaves no shop when nothing is for sale', () => {
+    expect(cleanLocation({ ...shop, shop: [item('')] })).not.toHaveProperty('shop');
+  });
+
+  it('needs a name on every filled-in item', () => {
+    expect(validateLocation({ ...shop, shop: [item('', '5 gp')] }, all)).toContain('Give every shop item a name.');
+    expect(validateLocation({ ...shop, shop: [item(''), item('Rope')] }, all)).toEqual([]);
+  });
 });
 
 describe('planLocationSave', () => {

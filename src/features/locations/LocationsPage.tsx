@@ -37,7 +37,7 @@ export function LocationsPage() {
           <TextInput
             type="search"
             aria-label="Search locations"
-            placeholder="Search names, notes and NPCs…"
+            placeholder="Search names, notes, NPCs and shops…"
             value={query}
             onChange={(e) => setFilter('q', e.target.value)}
             className="min-w-48 flex-1"
