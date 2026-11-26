@@ -84,6 +84,9 @@ export function ItemsPage() {
         >
           {filtered ? `Export ${shown.length} shown` : 'Export all'}
         </Button>
+        <Button onClick={() => navigate('/items/bulk')} title="Paste several at once, or a whole table, from a PDF, a website or your notes">
+          Bulk add
+        </Button>
         <Button variant="primary" onClick={() => navigate(category ? `/items/new?category=${category}` : '/items/new')}>
           New item
         </Button>

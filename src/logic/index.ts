@@ -21,3 +21,4 @@ export * from './items';
 export * from './parseText';
 export * from './locations';
 export * from './remote';
+export * from './parseItemText';
