@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { Item } from '../models';
 import {
   blankItem,
+  blankMagicEffect,
+  bonusLine,
   costInCopper,
+  effectUses,
   filterItems,
   itemSubtitle,
   itemSummary,
@@ -10,6 +13,7 @@ import {
   validateItem,
   weightInPounds,
   withCategory,
+  withMagic,
   type ItemSort,
 } from './items';
 
@@ -135,5 +139,102 @@ describe('normalizeItem', () => {
     expect(
       normalizeItem({ name: 'Lute', equipment_category: { name: 'Tools' }, tool_category: 'Musical Instrument', desc: ['A lute.'] }),
     ).toMatchObject({ category: 'tool', tool: { type: 'musical' }, description: 'A lute.' });
+  });
+});
+
+describe('magic items', () => {
+  const sword = item('Longsword +1', {
+    category: 'weapon',
+    weapon: { class: 'martial', range: 'melee', damage: '1d8', damageType: 'slashing', properties: '' },
+  });
+
+  it('turns magic on with defaults and off again', () => {
+    const magic = withMagic(sword, true);
+    expect(magic.magic).toEqual({ rarity: 'uncommon', attunement: false, attunementBy: '', bonus: 0, effects: [] });
+    expect(withMagic(magic, false)).toEqual(sword);
+    const rare = { ...magic, magic: { ...magic.magic!, rarity: 'rare' as const } };
+    expect(withMagic(rare, true).magic!.rarity).toBe('rare');
+  });
+
+  it('adds the bonus to attack and damage for weapons, and to AC for armor', () => {
+    const plus1 = { ...sword, magic: { rarity: 'rare' as const, attunement: true, attunementBy: 'by a paladin', bonus: 1, effects: [] } };
+    expect(itemSubtitle(plus1)).toBe('Martial melee weapon, rare (requires attunement by a paladin)');
+    expect(itemSummary(plus1)).toBe('+1 to hit, 1d8 + 1 slashing');
+    expect(bonusLine(plus1)).toBe('+1 to attack and damage rolls');
+    const shield = item('Shield +2', {
+      category: 'armor',
+      armor: { type: 'shield', ac: '+2', strength: 0, stealthDisadvantage: false },
+      magic: { rarity: 'rare', attunement: false, attunementBy: '', bonus: 2, effects: [] },
+    });
+    expect(itemSummary(shield)).toBe('AC +2, +2 AC');
+    expect(bonusLine(shield)).toBe('+2 to AC');
+    // Gear has no bonus even if one is stored.
+    expect(bonusLine({ ...shield, category: 'gear' })).toBe('');
+  });
+
+  it('describes uses', () => {
+    expect(effectUses({ kind: 'action', uses: 0, recharge: '' })).toBe('');
+    expect(effectUses({ kind: 'spell', uses: 3, recharge: 'dawn' })).toBe('3/dawn');
+    expect(effectUses({ kind: 'action', uses: 1, recharge: '' })).toBe('1 use');
+    expect(effectUses({ kind: 'passive', uses: 3, recharge: 'dawn' })).toBe('');
+  });
+
+  it('validates the bonus and effects', () => {
+    const m = { rarity: 'rare' as const, attunement: false, attunementBy: '', bonus: 0, effects: [] };
+    expect(validateItem({ ...sword, magic: { ...m, bonus: 11 } })).toEqual(['Magic bonus must be between 0 and 10.']);
+    expect(validateItem({ ...sword, magic: { ...m, effects: [blankMagicEffect('passive')] } })).toEqual([
+      'Every action and passive needs a name.',
+    ]);
+    expect(validateItem({ ...sword, magic: { ...m, effects: [blankMagicEffect('spell')] } })).toHaveLength(1);
+    expect(validateItem({ ...sword, magic: { ...m, effects: [{ ...blankMagicEffect('spell'), spellId: 's1' }] } })).toEqual([]);
+  });
+
+  it('filters to magic items and sorts by rarity, mundane last', () => {
+    const list = [
+      item('Rope'),
+      item('Wand', { magic: { rarity: 'rare', attunement: false, attunementBy: '', bonus: 0, effects: [] } }),
+      item('Potion', { magic: { rarity: 'common', attunement: false, attunementBy: '', bonus: 0, effects: [] } }),
+      item('Staff', { magic: { rarity: 'very rare', attunement: true, attunementBy: '', bonus: 0, effects: [] } }),
+    ];
+    expect(filterItems(list, { magic: true }).map((i) => i.name)).toEqual(['Potion', 'Staff', 'Wand']);
+    expect(filterItems(list, { sort: 'rarity' }).map((i) => i.name)).toEqual(['Potion', 'Wand', 'Staff', 'Rope']);
+    expect(filterItems(list, { sort: 'rarity', desc: true }).map((i) => i.name)).toEqual(['Staff', 'Wand', 'Potion', 'Rope']);
+  });
+
+  it('keeps its own magic format through import', () => {
+    const own = {
+      ...sword,
+      magic: {
+        rarity: 'very rare' as const,
+        attunement: true,
+        attunementBy: '',
+        bonus: 2,
+        effects: [
+          { id: 'e1', kind: 'spell' as const, name: '', spellId: 'fireball', description: 'Save DC 15.', uses: 3, recharge: 'dawn' },
+          { id: 'e2', kind: 'passive' as const, name: 'Fire Resistance', description: 'You resist fire.', uses: 0, recharge: '' },
+        ],
+      },
+    };
+    expect(normalizeItem(JSON.parse(JSON.stringify(own)))).toEqual(own);
+  });
+
+  it('reads public 5e magic item data, with the bonus from the name', () => {
+    expect(
+      normalizeItem({
+        name: 'Weapon, +2',
+        equipment_category: { name: 'Weapon' },
+        rarity: { name: 'Rare' },
+        desc: ['Weapon (any), rare', 'You have a +2 bonus to attack and damage rolls made with this magic weapon.'],
+      }),
+    ).toMatchObject({ category: 'weapon', magic: { rarity: 'rare', attunement: false, bonus: 2, effects: [] } });
+    expect(
+      normalizeItem({
+        name: 'Holy Avenger',
+        rarity: { name: 'Legendary' },
+        desc: ['Weapon (any sword), legendary (requires attunement by a paladin)'],
+      })!.magic,
+    ).toMatchObject({ rarity: 'legendary', attunement: true, attunementBy: 'by a paladin' });
+    expect(normalizeItem({ name: 'Bag of Holding', rarity: 'Very Rare' })!.magic!.rarity).toBe('very rare');
+    expect(normalizeItem({ name: 'Torch' })!.magic).toBeUndefined();
   });
 });
