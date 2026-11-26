@@ -31,8 +31,8 @@ test('items: create a weapon, browse by category, edit and delete', async ({ pag
   await page.getByRole('textbox', { name: 'Armor Class' }).fill('16');
   await page.getByRole('checkbox', { name: 'Disadvantage on Stealth' }).check();
   await page.getByRole('button', { name: 'Save item' }).click();
-  // Wait for the item page: the editor's preview is an article too.
-  await expect(page).toHaveURL(/#\/items\/[^/]+$/);
+  // Wait for the item page (not /items/new, which matches too): the editor's preview is an article too.
+  await expect(page).toHaveURL(/#\/items\/(?!new$)[^/]+$/);
   await expect(page.locator('article')).toContainText('Heavy armor');
 
   // The tabs filter the list and show counts.

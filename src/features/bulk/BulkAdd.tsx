@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { Button, Card, PageHeader, TextArea } from '../../components/ui';
 import { useShortcuts } from '../../components/shortcuts';
 import { useHotkeys } from '../settings/hotkeys';
-import { newId, type Parsed } from '../../logic';
+import { newId, type ParseQuestion, type Parsed } from '../../logic';
 
 type Status = 'pending' | 'approved' | 'discarded';
 
@@ -13,6 +13,8 @@ interface Item<T> {
   source: string;
   value: T;
   warnings: string[];
+  /** Something the parser asks the DM to decide before this can be added. */
+  question?: ParseQuestion<T>;
   status: Status;
   /** Show validation errors (after a failed approve). */
   showErrors: boolean;
@@ -41,6 +43,10 @@ export interface BulkAddProps<T extends { id: string; name: string }> {
   backTo: string;
   backLabel: string;
   placeholder: string;
+  /** Replaces the paste page's "Paste one … per box" explanation. */
+  intro?: ReactNode;
+  /** Splits one box into several to review (such as the rows of a pasted table). */
+  split?: (text: string) => string[];
   parse: (text: string) => Parsed<T>;
   validate: (value: T) => string[];
   save: (value: T) => Promise<void>;
@@ -68,6 +74,7 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
   const [busy, setBusy] = useState(false);
 
   const filled = pastes.filter((p) => p.text.trim());
+  const sources = filled.flatMap((p) => (props.split ? props.split(p.text) : [p.text]));
   const pending = items.filter((i) => i.status === 'pending');
   const unsaved = pending.length > 0 || filled.length > 0;
   useEffect(() => {
@@ -89,11 +96,16 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
   const update = (key: string, patch: Partial<Item<T>>) =>
     setItems((list) => list.map((i) => (i.key === key ? { ...i, ...patch } : i)));
 
+  /** What stops an item being added: an unanswered question, then validation errors. */
+  const problems = (item: Item<T>) => [...(item.question ? [`Answer "${item.question.prompt}" first.`] : []), ...validate(item.value)];
+
+  const read = (source: string): Pick<Item<T>, 'source' | 'value' | 'warnings' | 'question'> => {
+    const { value, warnings, question } = parse(source);
+    return { source, value, warnings, question };
+  };
+
   const readAll = () => {
-    const fresh: Item<T>[] = filled.map((p) => {
-      const { value, warnings } = parse(p.text);
-      return { key: newId(), source: p.text, value, warnings, status: 'pending', showErrors: false };
-    });
+    const fresh: Item<T>[] = sources.map((text) => ({ key: newId(), ...read(text), status: 'pending', showErrors: false }));
     if (fresh.length === 0) return;
     setIndex(items.length);
     setItems([...items, ...fresh]);
@@ -112,7 +124,7 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
   };
 
   const approve = async (item: Item<T>) => {
-    if (validate(item.value).length) {
+    if (problems(item).length) {
       update(item.key, { showErrors: true });
       return;
     }
@@ -139,7 +151,7 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
       for (let i = 0; i < list.length; i++) {
         const item = list[i]!;
         if (item.status !== 'pending') continue;
-        if (validate(item.value).length) {
+        if (problems(item).length) {
           list[i] = { ...item, showErrors: true };
           continue;
         }
@@ -190,8 +202,12 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
         </PageHeader>
         {banner}
         <p className="mb-4 max-w-3xl text-sm text-stone-400">
-          Paste one {noun} per box, copied from a PDF, a website or your own notes. Each is read as well as it can be,
-          then you can check and fix every one before adding it.
+          {props.intro ?? (
+            <>
+              Paste one {noun} per box, copied from a PDF, a website or your own notes. Each is read as well as it can be,
+              then you can check and fix every one before adding it.
+            </>
+          )}
         </p>
         {pending.length > 0 && (
           <p className="mb-4 text-sm text-stone-400">
@@ -233,9 +249,9 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
         </div>
         <div className="fixed bottom-0 left-[var(--nav-width,0px)] right-0 z-10 border-t border-stone-800 bg-stone-950/95 backdrop-blur">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-end gap-3 px-4 py-3">
-            <span className="mr-auto text-xs text-stone-500">{filled.length ? `${plural(filled.length)} pasted` : 'Nothing pasted yet'}</span>
-            <Button variant="primary" disabled={!filled.length} onClick={readAll}>
-              Read {filled.length > 1 ? plural(filled.length) : filled.length ? `${noun}` : nounPlural}
+            <span className="mr-auto text-xs text-stone-500">{sources.length ? `${plural(sources.length)} pasted` : 'Nothing pasted yet'}</span>
+            <Button variant="primary" disabled={!sources.length} onClick={readAll}>
+              Read {sources.length > 1 ? plural(sources.length) : sources.length ? `${noun}` : nounPlural}
             </Button>
           </div>
         </div>
@@ -246,7 +262,7 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
   // ---------- review ----------
   const approvedCount = items.filter((i) => i.status === 'approved').length;
   const discardedCount = items.filter((i) => i.status === 'discarded').length;
-  const errors = current ? validate(current.value) : [];
+  const errors = current ? problems(current) : [];
   const duplicate =
     current?.status === 'pending' &&
     existingNames.some((n) => n.trim().toLowerCase() === current.value.name.trim().toLowerCase());
@@ -275,7 +291,8 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
 
       <nav aria-label={`${nounPlural} to review`} className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
         {items.map((item, i) => {
-          const bad = item.status === 'pending' && item.showErrors && validate(item.value).length > 0;
+          const bad = item.status === 'pending' && item.showErrors && problems(item).length > 0;
+          const asking = item.status === 'pending' && !bad && !!item.question;
           return (
             <button
               key={item.key}
@@ -286,12 +303,15 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
                 i === index ? 'border-amber-500 bg-amber-500/15 text-amber-100' : 'border-stone-700 text-stone-400 hover:border-stone-500'
               } ${item.status === 'discarded' ? 'line-through opacity-50' : ''}`}
             >
-              <span aria-hidden className={item.status === 'approved' ? 'text-emerald-400' : bad ? 'text-red-400' : 'text-stone-500'}>
+              <span
+                aria-hidden
+                className={item.status === 'approved' ? 'text-emerald-400' : bad ? 'text-red-400' : asking ? 'text-amber-400' : 'text-stone-500'}
+              >
                 {item.status === 'approved' ? '✓' : item.status === 'discarded' ? '✕' : bad ? '!' : item.warnings.length ? '?' : '•'}
               </span>
               <span className="max-w-40 truncate">{item.value.name || `Unnamed ${noun}`}</span>
               <span className="sr-only">
-                {item.status === 'pending' ? (bad ? '(needs fixing)' : '(to review)') : `(${item.status})`}
+                {item.status === 'pending' ? (bad ? '(needs fixing)' : asking ? '(question to answer)' : '(to review)') : `(${item.status})`}
               </span>
             </button>
           );
@@ -315,6 +335,13 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
                 <Button onClick={() => update(current.key, { status: 'pending' })}>Restore</Button>
               </Card>
             )}
+            {current.status === 'pending' && current.question && (
+              <QuestionCard
+                question={current.question}
+                highlight={current.showErrors}
+                onAnswer={(apply) => update(current.key, { value: apply(current.value), question: undefined })}
+              />
+            )}
             {current.status === 'pending' && (current.warnings.length > 0 || duplicate) && (
               <Card className="border-amber-800/70 bg-amber-950/20">
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-amber-400">Check these</p>
@@ -332,13 +359,18 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
             )}
             {current.status === 'pending' && (
               <>
-                {props.form(current.value, (value) => update(current.key, { value }))}
+                {props.form(current.value, (value) =>
+                  update(current.key, {
+                    value,
+                    ...(current.question?.answeredBy?.(current.value, value) ? { question: undefined } : {}),
+                  }),
+                )}
                 <SourceText
                   source={current.source}
                   onReread={(source) => {
-                    const { value, warnings } = parse(source);
+                    const fresh = read(source);
                     // Keep the id, so a re-read is still the same record.
-                    update(current.key, { source, value: { ...value, id: current.value.id }, warnings, showErrors: false });
+                    update(current.key, { ...fresh, value: { ...fresh.value, id: current.value.id }, showErrors: false });
                   }}
                 />
               </>
@@ -396,6 +428,35 @@ export function BulkAdd<T extends { id: string; name: string }>(props: BulkAddPr
         </div>
       </div>
     </>
+  );
+}
+
+/** A choice the parser couldn't make, such as what kind of item something is. */
+function QuestionCard<T>({
+  question,
+  highlight,
+  onAnswer,
+}: {
+  question: ParseQuestion<T>;
+  highlight: boolean;
+  onAnswer: (apply: (value: T) => T) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={question.prompt}
+      className={`flex flex-col gap-2 rounded-lg border p-4 ${highlight ? 'border-red-700 bg-red-950/20' : 'border-amber-700 bg-amber-950/30'}`}
+    >
+      <p className="font-semibold text-amber-100">{question.prompt}</p>
+      {question.detail && <p className="text-sm text-stone-400">{question.detail}</p>}
+      <div className="flex flex-wrap gap-2">
+        {question.choices.map((c) => (
+          <Button key={c.label} onClick={() => onAnswer(c.apply)}>
+            {c.label}
+          </Button>
+        ))}
+      </div>
+    </div>
   );
 }
 

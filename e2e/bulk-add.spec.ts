@@ -130,3 +130,43 @@ Cantrips (at will): fire bolt, light
   await expect(page.getByRole('textbox', { name: '1st-level slots' })).toHaveValue('4');
   await expect(page.getByRole('textbox', { name: '3rd-level slots' })).toHaveValue('2');
 });
+
+test('bulk add items: a pasted table is split into rows, and it asks what an item is when it can’t tell', async ({ page }) => {
+  await page.goto('#/items');
+  await page.getByRole('button', { name: 'Bulk add' }).click();
+  await expect(page.getByRole('heading', { name: 'Bulk add items' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Item 1' }).fill(`Name Cost Damage Weight Properties
+Martial Melee Weapons
+Longsword 15 gp 1d8 slashing 3 lb. Versatile (1d10)
+Warhammer 15 gp 1d8 bludgeoning 2 lb. Versatile (1d10)`);
+  await page.getByRole('textbox', { name: 'Item 2' }).fill(`Torch
+1 cp, 1 lb.
+A torch burns for 1 hour, providing bright light in a 20-foot radius.`);
+  await page.getByRole('textbox', { name: 'Item 3' }).fill('Chain mail 75 gp 16 Str 13 Disadvantage 55 lb.');
+  await page.getByRole('button', { name: 'Read 4 items' }).click();
+
+  // The table's rows are read as martial melee weapons.
+  const tabs = page.getByRole('navigation', { name: 'items to review' });
+  await expect(tabs.getByRole('button')).toHaveCount(4);
+  await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Longsword');
+  await expect(page.getByRole('combobox', { name: 'Category' })).toHaveValue('weapon');
+  await expect(page.getByRole('combobox', { name: 'Weapon class' })).toHaveValue('martial');
+  await expect(page.getByRole('textbox', { name: 'Damage', exact: true })).toHaveValue('1d8');
+
+  // The torch could be anything: Approve all adds the rest and stops on it with the question.
+  await page.getByRole('button', { name: 'Approve all (4)' }).click();
+  await expect(page.getByRole('status')).toContainText('Added 3 items. 1 item still needs fixing');
+  const question = page.getByRole('group', { name: 'What kind of item is Torch?' });
+  await expect(question).toBeVisible();
+  await expect(page.getByText('Answer "What kind of item is Torch?" first.')).toBeVisible();
+  await question.getByRole('button', { name: 'Adventuring gear' }).click();
+  await expect(question).toBeHidden();
+  await expect(page.getByRole('combobox', { name: 'Category' })).toHaveValue('gear');
+  await page.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(page.getByText('All reviewed: 4 items added.')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Items', exact: true }).first().click();
+  await page.getByRole('link', { name: 'Chain mail' }).click();
+  await expect(page.getByText('Heavy armor')).toBeVisible();
+  await expect(page.getByText('Str 13')).toBeVisible();
+});

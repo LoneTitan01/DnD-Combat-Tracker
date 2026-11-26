@@ -10,6 +10,7 @@ import { EncountersPage } from './features/encounters/EncountersPage';
 import { CampaignsPage } from './features/campaigns/CampaignsPage';
 import { CombatPage } from './features/combat/CombatPage';
 import { CombatsPage } from './features/combat/CombatsPage';
+import { BulkAddItems } from './features/items/BulkAddItems';
 import { ItemEditor } from './features/items/ItemEditor';
 import { ItemPage } from './features/items/ItemPage';
 import { ItemsPage } from './features/items/ItemsPage';
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="spells/:id/edit" element={<SpellEditor key="edit" />} />
           <Route path="items" element={<ItemsPage />} />
           <Route path="items/new" element={<ItemEditor />} />
+          <Route path="items/bulk" element={<BulkAddItems />} />
           <Route path="items/:id" element={<ItemPage />} />
           <Route path="items/:id/edit" element={<ItemEditor key="edit" />} />
           <Route path="encounters" element={<EncountersPage />} />

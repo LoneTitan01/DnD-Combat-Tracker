@@ -30,6 +30,21 @@ export interface Parsed<T> {
   value: T;
   /** Things the parser couldn't find or place, for the DM to check. */
   warnings: string[];
+  /**
+   * Something the parser couldn't decide on its own, for the DM to answer before it's added (such as
+   * whether an item is a weapon or a tool).
+   */
+  question?: ParseQuestion<T>;
+}
+
+export interface ParseQuestion<T> {
+  /** "What kind of item is Rope?" */
+  prompt: string;
+  /** Why it had to ask. */
+  detail?: string;
+  choices: { label: string; apply: (value: T) => T }[];
+  /** True when an edit in the form already answers it, so the question goes away. */
+  answeredBy?: (before: T, after: T) => boolean;
 }
 
 // ---------- shared text clean-up ----------
@@ -49,7 +64,7 @@ export function cleanLines(text: string): string[] {
 }
 
 /** Joins a continuation line: new paragraph after a full sentence, otherwise a soft-wrapped line. */
-function append(text: string, line: string): string {
+export function append(text: string, line: string): string {
   if (!text) return line;
   if (/-$/.test(text) && /^[a-z]/.test(line)) return text.slice(0, -1) + line; // hyphenated wrap
   // A sentence ended, or the line starts a list item like "1st level (4 slots):" or "At Will:".
