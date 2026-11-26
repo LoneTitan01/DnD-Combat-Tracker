@@ -159,11 +159,6 @@ export function BestiaryPage() {
                     <Link to={`/bestiary/${c.id}`} className="font-semibold text-stone-100 hover:text-amber-300">
                       {c.name}
                     </Link>
-                    {c.actions.some((a) => a.recharge) && (
-                      <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] uppercase text-amber-300">
-                        recharge
-                      </span>
-                    )}
                   </td>
                   <td className="px-2 py-2 text-stone-400">
                     {c.size} {c.type}
