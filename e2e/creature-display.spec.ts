@@ -46,3 +46,31 @@ test('player view: kind of creature under the name, real or the DM’s fake', as
   await expect(table.locator('main')).toContainText('Aria');
   await expect(table.locator('main').getByLabel('Creature', { exact: true })).toHaveCount(0);
 });
+
+test('player view: an allied creature’s name is green instead of red', async ({ page, context }) => {
+  await seed(page);
+  await page.getByRole('button', { name: 'Stage' }).click();
+  await expect(page).toHaveURL(/#\/combats\/[^/]+$/);
+  const combatId = page.url().split('/').pop()!;
+  await setInitiative(page, 'Goblin 1', 25);
+  await setInitiative(page, 'Goblin 2', 3);
+  await setInitiative(page, 'Dragon 1', 22);
+  await page.getByRole('button', { name: 'Start combat…' }).click();
+  for (const [name, init] of [['Aria', 20], ['Brom', 18], ['Cass', 10], ['Dain', 5]] as const)
+    await page.getByRole('textbox', { name: `Initiative for ${name}` }).fill(String(init));
+  await page.getByRole('button', { name: 'Roll for initiative!' }).click();
+
+  const table = await context.newPage();
+  await table.goto(`#/table?combat=${combatId}`);
+  const name = table.locator('main ul');
+  await expect(name).toContainText('Goblin 1');
+  await expect(name).toHaveClass(/text-red-300/);
+
+  await select(page, 'Goblin 1');
+  await page.getByRole('checkbox', { name: /Ally of the players/ }).check();
+  await expect(row(page, 'Goblin 1')).toContainText('ally');
+  await expect(name).toHaveClass(/text-emerald-300/);
+
+  await page.getByRole('checkbox', { name: /Ally of the players/ }).uncheck();
+  await expect(name).toHaveClass(/text-red-300/);
+});

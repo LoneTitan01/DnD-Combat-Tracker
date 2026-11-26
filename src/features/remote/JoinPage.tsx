@@ -4,6 +4,7 @@ import { Button, Chip, TextInput } from '../../components/ui';
 import { conditionLabel, normalizeJoinCode, type RemotePlayer, type RemoteView, type TableGroup } from '../../logic';
 import { CONDITION_DESCRIPTIONS, CONDITIONS, type ID } from '../../models';
 import { InitiativeInput } from '../combat/InitiativeInput';
+import { nameColor } from '../table/nameColor';
 import { useRemoteClient, type ClientStatus } from './useRemoteClient';
 
 const CODE_KEY = 'dm-combat-tracker:join-code';
@@ -238,7 +239,7 @@ function CombatView({ view, me, send }: { view: RemoteView; me: RemotePlayer | n
           ) : (
             <>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">Now</p>
-              <p className={`font-display text-3xl font-bold ${t.current.kind === 'creature' ? 'text-red-300' : 'text-white'}`}>
+              <p className={`font-display text-3xl font-bold ${nameColor(t.current)}`}>
                 {names(t.current)}
               </p>
             </>
@@ -247,7 +248,7 @@ function CombatView({ view, me, send }: { view: RemoteView; me: RemotePlayer | n
             <p className="mt-2 text-stone-300" aria-label="Up next">
               <span className="mr-2 text-xs font-semibold uppercase tracking-[0.2em] text-stone-400">Up next</span>
               {nextUp ? <strong className="text-amber-300">You{t.upNext.names.length > 1 ? ` and ${t.upNext.names.filter((n) => n !== me?.name).join(', ')}` : ''}</strong> : (
-                <span className={t.upNext.kind === 'creature' ? 'text-red-300' : 'text-white'}>{names(t.upNext)}</span>
+                <span className={nameColor(t.upNext)}>{names(t.upNext)}</span>
               )}
               {t.upNext.newRound && <span className="ml-2 text-xs text-stone-500">(round {view.round + 1})</span>}
             </p>
@@ -270,7 +271,7 @@ function CombatView({ view, me, send }: { view: RemoteView; me: RemotePlayer | n
                   className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${turn.current ? 'border-amber-500 bg-amber-500/10' : 'border-stone-800 bg-stone-900/60'}`}
                 >
                   <span className="w-8 text-center tabular-nums text-stone-400">{player?.initiative ?? ''}</span>
-                  <span className={`flex-1 font-semibold ${turn.kind === 'creature' ? 'text-red-300' : 'text-stone-100'}`}>
+                  <span className={`flex-1 font-semibold ${nameColor(turn, 'text-stone-100')}`}>
                     {turn.current && <span className="mr-1 text-amber-400">▶</span>}
                     {turn.name}
                     {turn.creature && <span className="ml-2 text-xs font-normal text-stone-400">{turn.creature}</span>}

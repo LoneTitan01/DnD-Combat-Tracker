@@ -116,7 +116,7 @@ function Row({
           />
         </span>
         <div className="min-w-32 flex-1">
-          <span className={`font-semibold ${c.isDead ? 'text-stone-500 line-through' : 'text-stone-100'}`}>
+          <span className={`font-semibold ${c.isDead ? 'text-stone-500 line-through' : c.kind === 'creature' && c.ally ? 'text-emerald-300' : 'text-stone-100'}`}>
             {isCurrent && <span className="mr-1 text-amber-400">▶</span>}
             {c.tokenName}
           </span>
@@ -130,6 +130,7 @@ function Row({
             </span>
           )}
           {c.kind === 'player' && <span className="ml-2 text-xs text-sky-300">player</span>}
+          {c.kind === 'creature' && c.ally && <span className="ml-2 text-xs text-emerald-300">ally</span>}
           {c.isDead && <span className="ml-2 text-xs text-red-400">dead</span>}
           {duplicate && <span className="ml-2 text-xs text-amber-400">duplicate name</span>}
           {c.showFakeName && (
