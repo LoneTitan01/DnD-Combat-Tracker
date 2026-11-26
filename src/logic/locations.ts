@@ -1,5 +1,6 @@
-import type { ID, Item, Location, Npc, ShopItem } from '../models';
+import { ARMOR_TYPES, ITEM_CATEGORIES, TOOL_TYPES, WEAPON_CLASSES, type ID, type Item, type ItemCategory, type Location, type Npc, type ShopItem } from '../models';
 import { newId } from './ids';
+import { ARMOR_TYPE_LABELS, costInCopper, ITEM_CATEGORY_LABELS, TOOL_TYPE_LABELS, armorOf, toolOf, weaponOf } from './items';
 
 export function blankLocation(campaignId: ID, parentId?: ID): Location {
   const now = Date.now();
@@ -118,6 +119,95 @@ export function shopItemFor(item: Pick<Item, 'id' | 'name' | 'cost'>): ShopItem 
 /** A shop row for something that isn't in the item list: this shop alone sells it. */
 export function shopOnlyItem(name: string): ShopItem {
   return { id: newId(), name, cost: '', description: '' };
+}
+
+// ---------- stocking a shop in bulk ----------
+
+/** One kind of item a shop can be stocked with: a category, narrowed to a subtype where it has them. */
+export interface ShopKind {
+  /** "tool:musical", "weapon:simple", "gear". */
+  key: string;
+  category: ItemCategory;
+  label: string;
+}
+
+const SUBTYPES: Record<ItemCategory, readonly { key: string; label: string }[]> = {
+  weapon: WEAPON_CLASSES.map((c) => ({ key: c, label: c === 'simple' ? 'Simple weapons' : 'Martial weapons' })),
+  armor: ARMOR_TYPES.map((t) => ({ key: t, label: t === 'shield' ? 'Shields' : ARMOR_TYPE_LABELS[t] })),
+  tool: TOOL_TYPES.map((t) => ({ key: t, label: t === 'other' ? 'Other tools' : `${TOOL_TYPE_LABELS[t]}s` })),
+  gear: [],
+};
+
+/** Every kind, grouped by category in the item list's order. Gear has no subtypes, so it is one kind. */
+export const SHOP_KIND_GROUPS: readonly { category: ItemCategory; label: string; kinds: ShopKind[] }[] = ITEM_CATEGORIES.map(
+  (category) => ({
+    category,
+    label: ITEM_CATEGORY_LABELS[category],
+    kinds: SUBTYPES[category].length
+      ? SUBTYPES[category].map((s) => ({ key: `${category}:${s.key}`, category, label: s.label }))
+      : [{ key: category, category, label: ITEM_CATEGORY_LABELS[category] }],
+  }),
+);
+
+/** The kind an item is, as a `ShopKind` key. */
+export function shopKindOf(i: Item): string {
+  switch (i.category) {
+    case 'weapon':
+      return `weapon:${weaponOf(i).class}`;
+    case 'armor':
+      return `armor:${armorOf(i).type}`;
+    case 'tool':
+      return `tool:${toolOf(i).type}`;
+    default:
+      return i.category;
+  }
+}
+
+/**
+ * A price typed as a bound: "25" is gold, "5 sp" or "1,500 gp" are read as written. In copper; undefined
+ * when empty, and NaN when it can't be read.
+ */
+export function parsePriceBound(text: string): number | undefined {
+  const t = text.trim();
+  if (!t) return undefined;
+  if (/^\d[\d,]*(?:\.\d+)?$/.test(t)) return Number(t.replace(/,/g, '')) * 100;
+  return costInCopper(t) ?? NaN;
+}
+
+export interface ShopStockFilter {
+  /** `ShopKind` keys; empty means every kind. */
+  kinds: readonly string[];
+  /** Price bounds in copper, inclusive. Items whose cost can't be read are left out when either is set. */
+  minCost?: number;
+  maxCost?: number;
+  /** Include magic items. Off by default, since most shops sell mundane goods. */
+  magic?: boolean;
+}
+
+/**
+ * Items from the item list that match the filter and aren't already for sale in `shop`, by kind (in
+ * `SHOP_KIND_GROUPS` order), then price, then name.
+ */
+export function itemsToStock(catalog: readonly Item[], shop: readonly ShopItem[], f: ShopStockFilter): Item[] {
+  const stocked = new Set(shop.map((s) => s.itemId));
+  const kinds = new Set(f.kinds);
+  const order = SHOP_KIND_GROUPS.flatMap((g) => g.kinds.map((k) => k.key));
+  const bounded = f.minCost !== undefined || f.maxCost !== undefined;
+  const price = (i: Item) => costInCopper(i.cost);
+  return catalog
+    .filter((i) => {
+      if (stocked.has(i.id) || (i.magic && !f.magic)) return false;
+      if (kinds.size && !kinds.has(shopKindOf(i))) return false;
+      if (!bounded) return true;
+      const c = price(i);
+      return c !== undefined && (f.minCost === undefined || c >= f.minCost) && (f.maxCost === undefined || c <= f.maxCost);
+    })
+    .sort(
+      (a, b) =>
+        order.indexOf(shopKindOf(a)) - order.indexOf(shopKindOf(b)) ||
+        (price(a) ?? Infinity) - (price(b) ?? Infinity) ||
+        a.name.localeCompare(b.name),
+    );
 }
 
 /** Sells one of a shop row: its stock goes down by one, never below 0. Rows whose stock isn't counted don't change. */

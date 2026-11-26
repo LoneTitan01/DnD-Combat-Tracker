@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { Button, Card, Field, PageHeader, Select, TextArea, TextInput } from '../../components/ui';
+import { Button, Card, Chip, Field, PageHeader, Select, TextArea, TextInput } from '../../components/ui';
 import { db, saveLocation, setLocationNpcs } from '../../db';
 import {
   blankLocation,
@@ -10,9 +10,12 @@ import {
   findItemByName,
   findNpcByName,
   itemSubtitle,
+  itemsToStock,
   parentOptions,
+  parsePriceBound,
   parseStock,
   placeLabel,
+  SHOP_KIND_GROUPS,
   shopItemFor,
   shopOnlyItem,
   validateLocation,
@@ -196,12 +199,110 @@ function StockInput({
 }
 
 /**
+ * Stocks the shop with many items at once: every item of the picked kinds within a price range, e.g.
+ * tools and musical instruments for 25 gp or under. Matches are listed first, and any can be unticked.
+ */
+function BulkStock({ items, catalog, onAdd, onClose }: { items: ShopItem[]; catalog: Item[]; onAdd: (picked: Item[]) => void; onClose: () => void }) {
+  const [kinds, setKinds] = useState<string[]>([]);
+  const [min, setMin] = useState('');
+  const [max, setMax] = useState('');
+  const [magic, setMagic] = useState(false);
+  const [skipped, setSkipped] = useState<Set<ID>>(new Set());
+  const minCost = parsePriceBound(min);
+  const maxCost = parsePriceBound(max);
+  const badPrice = Number.isNaN(minCost) || Number.isNaN(maxCost);
+  const matches = badPrice ? [] : itemsToStock(catalog, items, { kinds, minCost, maxCost, magic });
+  const picked = matches.filter((i) => !skipped.has(i.id));
+  const toggle = (keys: string[], on: boolean) => setKinds(on ? [...new Set([...kinds, ...keys])] : kinds.filter((k) => !keys.includes(k)));
+  const skip = (id: ID) => {
+    const next = new Set(skipped);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSkipped(next);
+  };
+  const priceHint = 'gold, or e.g. "5 sp"';
+  return (
+    <section aria-label="Stock by kind and price">
+      <Card className="flex flex-col gap-3">
+        <div role="group" aria-label="Kinds of item" className="flex flex-col gap-1.5">
+          <p className="text-xs text-stone-400">
+            Kinds <span className="text-stone-500">{kinds.length ? '' : 'none picked, so every kind'}</span>
+          </p>
+          {SHOP_KIND_GROUPS.map((g) => {
+            const keys = g.kinds.map((k) => k.key);
+            const all = keys.every((k) => kinds.includes(k));
+            return (
+              <div key={g.category} className="flex flex-wrap items-center gap-1.5">
+                {keys.length > 1 && (
+                  <Chip on={all} onClick={() => toggle(keys, !all)}>
+                    {`All ${g.label.toLowerCase()}`}
+                  </Chip>
+                )}
+                {g.kinds.map((k) => {
+                  const on = kinds.includes(k.key);
+                  return (
+                    <Chip key={k.key} on={on} onClick={() => toggle([k.key], !on)}>
+                      {k.label}
+                    </Chip>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Min price" hint={priceHint} className="w-36">
+            <TextInput value={min} placeholder="0" onChange={(e) => setMin(e.target.value)} />
+          </Field>
+          <Field label="Max price" hint={priceHint} className="w-36">
+            <TextInput value={max} placeholder="25" onChange={(e) => setMax(e.target.value)} />
+          </Field>
+          <label className="flex items-center gap-2 pb-2 text-sm text-stone-300">
+            <input type="checkbox" className="accent-amber-500" checked={magic} onChange={(e) => setMagic(e.target.checked)} />
+            Include magic items
+          </label>
+        </div>
+        {badPrice ? (
+          <p className="text-xs text-red-300">Prices are a number of gold pieces, or an amount like "5 sp".</p>
+        ) : matches.length === 0 ? (
+          <p className="text-xs text-stone-500">
+            Nothing in the item list matches that isn't already for sale here.
+            {minCost !== undefined || maxCost !== undefined ? ' Items with no price in the item list are left out when filtering by price.' : ''}
+          </p>
+        ) : (
+          <ul aria-label="Matching items" className="flex max-h-64 flex-col gap-1 overflow-y-auto">
+            {matches.map((i) => (
+              <li key={i.id}>
+                <label className="flex items-baseline gap-2 text-sm">
+                  <input type="checkbox" className="accent-amber-500" checked={!skipped.has(i.id)} onChange={() => skip(i.id)} />
+                  <span className="text-stone-100">{i.name}</span>
+                  <span className="text-xs text-stone-500">{[i.cost, itemSubtitle(i)].filter(Boolean).join(' · ')}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex gap-2">
+          <Button variant="primary" disabled={!picked.length} onClick={() => onAdd(picked)}>
+            {picked.length === 1 ? 'Add 1 item' : `Add ${picked.length} items`}
+          </Button>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+        </div>
+      </Card>
+    </section>
+  );
+}
+
+/**
  * The shop table: one row per item for sale, in the order they're listed. Items are picked from the
  * item list and start at its price, which each shop can change. Anything not in the item list can be
  * added as a shop-only item, with its own name and description.
  */
 function ShopEditor({ items, catalog, onChange }: { items: ShopItem[]; catalog: Item[]; onChange: (items: ShopItem[]) => void }) {
   const [name, setName] = useState('');
+  const [bulk, setBulk] = useState(false);
   const set = (id: ID, patch: Partial<ShopItem>) => onChange(items.map((i) => (i.id === id ? { ...i, ...patch } : i)));
   const byId = new Map(catalog.map((i) => [i.id, i]));
   const stocked = new Set(items.map((i) => i.itemId));
@@ -329,6 +430,24 @@ function ShopEditor({ items, catalog, onChange }: { items: ShopItem[]; catalog: 
         )}
         {match && stocked.has(match.id) && <p className="text-xs text-stone-500">{match.name} is already for sale here.</p>}
       </div>
+      {catalog.length > 0 &&
+        (bulk ? (
+          <BulkStock
+            items={items}
+            catalog={catalog}
+            onAdd={(picked) => {
+              onChange([...items, ...picked.map(shopItemFor)]);
+              setBulk(false);
+            }}
+            onClose={() => setBulk(false)}
+          />
+        ) : (
+          <div>
+            <Button variant="ghost" className="-ml-3" onClick={() => setBulk(true)}>
+              Stock by kind and price…
+            </Button>
+          </div>
+        ))}
     </section>
   );
 }

@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { Location } from '../models';
+import type { Item, Location } from '../models';
+import { blankItem } from './items';
 import {
   ancestorsOf,
   childOptions,
   cleanLocation,
   filterLocations,
+  itemsToStock,
+  parsePriceBound,
+  shopKindOf,
   locationTree,
   parentOptions,
   planLocationDelete,
@@ -213,5 +217,86 @@ describe('planLocationDelete', () => {
     const out = planLocationDelete(all, 'coast');
     expect(out).toHaveLength(1);
     expect('parentId' in out[0]!).toBe(false);
+  });
+});
+
+describe('stocking a shop in bulk', () => {
+  const item = (id: string, name: string, cost: string, patch: Partial<Item> = {}): Item => ({
+    ...blankItem(patch.category),
+    ...patch,
+    id,
+    name,
+    cost,
+  });
+  const catalog = [
+    item('lute', 'Lute', '35 gp', { category: 'tool', tool: { type: 'musical' } }),
+    item('flute', 'Flute', '2 gp', { category: 'tool', tool: { type: 'musical' } }),
+    item('thieves', "Thieves' Tools", '25 gp', { category: 'tool', tool: { type: 'other' } }),
+    item('smith', "Smith's Tools", '20 gp', { category: 'tool', tool: { type: 'artisan' } }),
+    item('dice', 'Dice Set', '1 sp', { category: 'tool', tool: { type: 'gaming' } }),
+    item('rope', 'Rope', '1 gp'),
+    item('odd', 'Odd Trinket', ''),
+    item('dagger', 'Dagger', '2 gp', { category: 'weapon' }),
+    item('whip', 'Whip', '2 gp', {
+      category: 'weapon',
+      weapon: { class: 'martial', range: 'melee', damage: '1d4', damageType: 'slashing', properties: '' },
+    }),
+    item('pipes', 'Pipes of Haunting', '6 gp', {
+      category: 'tool',
+      tool: { type: 'musical' },
+      magic: { rarity: 'uncommon', attunement: false, attunementBy: '', bonus: 0, effects: [] },
+    }),
+  ];
+  const names = (list: Item[]) => list.map((i) => i.name);
+
+  it('reads price bounds as gold unless a coin is given', () => {
+    expect(parsePriceBound('')).toBeUndefined();
+    expect(parsePriceBound(' 25 ')).toBe(2500);
+    expect(parsePriceBound('1,500')).toBe(150000);
+    expect(parsePriceBound('5 sp')).toBe(50);
+    expect(parsePriceBound('lots')).toBeNaN();
+  });
+
+  it('knows the kind of each item', () => {
+    expect(catalog.map(shopKindOf)).toEqual([
+      'tool:musical',
+      'tool:musical',
+      'tool:other',
+      'tool:artisan',
+      'tool:gaming',
+      'gear',
+      'gear',
+      'weapon:simple',
+      'weapon:martial',
+      'tool:musical',
+    ]);
+  });
+
+  it('picks the kinds asked for within a price range, in kind then price order', () => {
+    const tools = ['tool:artisan', 'tool:gaming', 'tool:musical', 'tool:other'];
+    expect(names(itemsToStock(catalog, [], { kinds: tools, maxCost: 2500 }))).toEqual([
+      "Smith's Tools",
+      'Dice Set',
+      'Flute',
+      "Thieves' Tools",
+    ]);
+    expect(names(itemsToStock(catalog, [], { kinds: ['tool:musical'], minCost: 500 }))).toEqual(['Lute']);
+    expect(names(itemsToStock(catalog, [], { kinds: ['weapon:simple'] }))).toEqual(['Dagger']);
+  });
+
+  it('takes every kind when none is picked, and leaves out unpriced items only when filtering by price', () => {
+    expect(itemsToStock(catalog, [], { kinds: [] })).toHaveLength(9);
+    expect(names(itemsToStock(catalog, [], { kinds: ['gear'] }))).toEqual(['Rope', 'Odd Trinket']);
+    expect(names(itemsToStock(catalog, [], { kinds: ['gear'], maxCost: 10000 }))).toEqual(['Rope']);
+  });
+
+  it('includes magic items only when asked, and skips what the shop already sells', () => {
+    expect(names(itemsToStock(catalog, [], { kinds: ['tool:musical'], magic: true }))).toEqual([
+      'Flute',
+      'Pipes of Haunting',
+      'Lute',
+    ]);
+    const shop = [shopItemFor(catalog[1]!)];
+    expect(names(itemsToStock(catalog, shop, { kinds: ['tool:musical'] }))).toEqual(['Lute']);
   });
 });

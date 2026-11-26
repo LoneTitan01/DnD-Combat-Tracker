@@ -187,3 +187,56 @@ test('locations: an optional shop table with items from the item list or shop-on
   await expect(page.getByRole('heading', { name: 'The Gilded Anvil', level: 1 })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Shop' })).toHaveCount(0);
 });
+
+test('locations: stock a shop with every item of some kinds within a price range', async ({ page }) => {
+  await page.goto('#/items');
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'items.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify([
+        { name: 'Flute', category: 'tool', tool: { type: 'musical' }, cost: '2 gp' },
+        { name: 'Lute', category: 'tool', tool: { type: 'musical' }, cost: '35 gp' },
+        { name: 'Thieves’ Tools', category: 'tool', tool: { type: 'other' }, cost: '25 gp' },
+        { name: 'Smith’s Tools', category: 'tool', tool: { type: 'artisan' }, cost: '20 gp' },
+        { name: 'Rope', cost: '1 gp' },
+        { name: 'Dagger', category: 'weapon', cost: '2 gp' },
+      ]),
+    ),
+  });
+  await expect(page.getByRole('status')).toContainText('Imported 6 new items');
+
+  await page.goto('#/locations/new');
+  await page.getByRole('textbox', { name: 'Name' }).fill('The Tinker’s Cart');
+  await page.getByRole('combobox', { name: 'Add a shop' }).fill('Rope');
+  await page.getByRole('button', { name: 'Add item' }).click();
+
+  // Tools and instruments for 25 gp or under.
+  await page.getByRole('button', { name: 'Stock by kind and price…' }).click();
+  const kinds = page.getByRole('group', { name: 'Kinds of item' });
+  await kinds.getByRole('button', { name: 'All tools' }).click();
+  await expect(kinds.getByRole('button', { name: 'Musical instruments' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('textbox', { name: 'Max price' }).fill('25');
+  const matches = page.getByRole('list', { name: 'Matching items' }).getByRole('listitem');
+  await expect(matches).toHaveText([/Smith’s Tools/, /Flute/, /Thieves’ Tools/]);
+
+  // Any match can be left out.
+  await matches.filter({ hasText: 'Smith’s Tools' }).getByRole('checkbox').uncheck();
+  await page.getByRole('button', { name: 'Add 2 items' }).click();
+  await expect(page.getByRole('list', { name: 'Matching items' })).toHaveCount(0);
+  await expect(page.getByLabel('Item 2', { exact: true })).toContainText('Flute');
+  await expect(page.getByLabel('Item 3', { exact: true })).toContainText('Thieves’ Tools');
+  await expect(page.getByRole('textbox', { name: 'Item 2 cost' })).toHaveValue('2 gp');
+
+  // Items already for sale aren't offered again.
+  await page.getByRole('button', { name: 'Stock by kind and price…' }).click();
+  await page.getByRole('textbox', { name: 'Max price' }).fill('5 gp');
+  await expect(page.getByRole('list', { name: 'Matching items' }).getByRole('listitem')).toHaveText([/Dagger/]);
+  await page.getByRole('textbox', { name: 'Max price' }).fill('cheap');
+  await expect(page.getByText('Prices are a number of gold pieces')).toBeVisible();
+  await page.getByRole('region', { name: 'Stock by kind and price' }).getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('region', { name: 'Stock by kind and price' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Save location' }).click();
+  await expect(page.getByRole('region', { name: 'Shop' }).getByRole('row')).toHaveCount(4);
+});
