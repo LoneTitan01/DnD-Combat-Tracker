@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { Button, Card } from '../../components/ui';
 import { deleteLocation } from '../../db';
 import { ancestorsOf, childrenOf, npcsAt, siblingsOf } from '../../logic';
-import type { Location } from '../../models';
+import type { Location, ShopItem } from '../../models';
 import { LocationLink, NpcLink, useLocations, useNpcs } from './shared';
 
 function Section({ title, empty, children }: { title: string; empty?: string; children?: ReactNode }) {
@@ -17,6 +17,31 @@ function Section({ title, empty, children }: { title: string; empty?: string; ch
 
 function LinkList({ items }: { items: ReactNode[] }) {
   return <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm">{items}</ul>;
+}
+
+function ShopTable({ items }: { items: ShopItem[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead className="text-xs text-stone-500">
+          <tr>
+            <th scope="col" className="py-1 pr-3 font-medium">Item</th>
+            <th scope="col" className="py-1 pr-3 font-medium">Cost</th>
+            <th scope="col" className="py-1 font-medium">Description</th>
+          </tr>
+        </thead>
+        <tbody className="align-top text-stone-200">
+          {items.map((i) => (
+            <tr key={i.id} className="border-t border-stone-800">
+              <td className="py-1.5 pr-3 font-medium">{i.name}</td>
+              <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums text-amber-200">{i.cost}</td>
+              <td className="py-1.5 text-stone-300">{i.description}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 async function confirmAndDelete(loc: Location, all: Location[]): Promise<boolean> {
@@ -90,11 +115,20 @@ export function LocationPage() {
       <h1 className="mb-4 font-display text-3xl font-bold text-stone-100">{loc.name}</h1>
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_16rem]">
-        <Card>
-          <Section title="Notes" empty="No notes yet.">
-            {loc.notes ? <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-200">{loc.notes}</p> : undefined}
-          </Section>
-        </Card>
+        <div className="flex min-w-0 flex-col gap-4">
+          <Card>
+            <Section title="Notes" empty="No notes yet.">
+              {loc.notes ? <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-200">{loc.notes}</p> : undefined}
+            </Section>
+          </Card>
+          {loc.shop?.length ? (
+            <Card>
+              <Section title="Shop">
+                <ShopTable items={loc.shop} />
+              </Section>
+            </Card>
+          ) : null}
+        </div>
 
         <Card className="flex flex-col gap-4">
           <Section title="Inside of" empty="Nowhere: a top-level place.">

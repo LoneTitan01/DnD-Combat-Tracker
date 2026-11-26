@@ -278,8 +278,18 @@ export interface Location {
    */
   siblingIds: ID[];
   notes: string;
+  /** What's for sale here, in the DM's order. Missing when the place has no shop. */
+  shop?: ShopItem[];
   createdAt: number;
   updatedAt: number;
+}
+
+/** One line of a location's shop table. Cost is free text ("50 gp", "a favour"). */
+export interface ShopItem {
+  id: ID;
+  name: string;
+  cost: string;
+  description: string;
 }
 
 /** A non-player character in one campaign. */

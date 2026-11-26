@@ -1,4 +1,4 @@
-import type { ID, Location, Npc } from '../models';
+import type { ID, Location, Npc, ShopItem } from '../models';
 import { newId } from './ids';
 
 export function blankLocation(campaignId: ID, parentId?: ID): Location {
@@ -110,7 +110,13 @@ export function locationTree(list: readonly Location[]): TreeRow[] {
   return rows;
 }
 
-/** Name, notes and NPC search, ignoring case. `npcs` are the campaign's NPCs, matched to where they live. */
+export function blankShopItem(): ShopItem {
+  return { id: newId(), name: '', cost: '', description: '' };
+}
+
+const blankItem = (i: ShopItem) => !i.name.trim() && !i.cost.trim() && !i.description.trim();
+
+/** Name, notes, shop item and NPC search, ignoring case. `npcs` are the campaign's NPCs, matched to where they live. */
 export function filterLocations(
   list: readonly Location[],
   query: string,
@@ -120,7 +126,13 @@ export function filterLocations(
   if (!q) return sortLocations(list);
   const npcHomes = new Set(npcs.filter((n) => n.locationId && n.name.toLowerCase().includes(q)).map((n) => n.locationId));
   return sortLocations(
-    list.filter((l) => l.name.toLowerCase().includes(q) || l.notes.toLowerCase().includes(q) || npcHomes.has(l.id)),
+    list.filter(
+      (l) =>
+        l.name.toLowerCase().includes(q) ||
+        l.notes.toLowerCase().includes(q) ||
+        npcHomes.has(l.id) ||
+        (l.shop ?? []).some((i) => i.name.toLowerCase().includes(q)),
+    ),
   );
 }
 
@@ -130,15 +142,23 @@ export function validateLocation(loc: Location, list: readonly Location[]): stri
   if (loc.parentId && (loc.parentId === loc.id || descendantIds(list, loc.id).has(loc.parentId))) {
     errors.push("A location can't be inside a place that's inside it.");
   }
+  if ((loc.shop ?? []).some((i) => !blankItem(i) && !i.name.trim())) errors.push('Give every shop item a name.');
   return errors;
 }
 
-/** Trims text, and drops repeated siblings and sibling links that point at itself. */
+/**
+ * Trims text, drops repeated siblings and sibling links that point at itself, and drops blank shop
+ * rows (leaving no `shop` at all when nothing is for sale).
+ */
 export function cleanLocation(loc: Location): Location {
-  const { parentId, ...rest } = loc;
+  const { parentId, shop, ...rest } = loc;
+  const items = (shop ?? [])
+    .filter((i) => !blankItem(i))
+    .map((i) => ({ ...i, name: i.name.trim(), cost: i.cost.trim(), description: i.description.trim() }));
   return {
     ...rest,
     ...(parentId ? { parentId } : {}),
+    ...(items.length ? { shop: items } : {}),
     name: loc.name.trim(),
     notes: loc.notes.trim(),
     siblingIds: [...new Set(loc.siblingIds)].filter((id) => id !== loc.id),
