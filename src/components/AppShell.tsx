@@ -99,13 +99,13 @@ function Sidebar({ mode, setMode }: { mode: 'full' | 'preview'; setMode: (m: Nav
         <NavLink
           to="/"
           onClick={afterNavigate}
-          title="DM Combat Tracker"
+          title="DM Helper"
           className={`flex h-14 shrink-0 items-center gap-2 border-b border-stone-800 font-display text-base font-bold text-amber-400 ${
             full ? 'px-3' : 'justify-center'
           }`}
         >
           <img src="./icon.svg" alt="" className="h-7 w-7 shrink-0" />
-          <span className={full ? 'truncate' : 'sr-only'}>DM Combat Tracker</span>
+          <span className={full ? 'truncate' : 'sr-only'}>DM Helper</span>
         </NavLink>
         <nav aria-label="Main" className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
           {NAV.map(({ to, label, icon: Icon, end }) => (
