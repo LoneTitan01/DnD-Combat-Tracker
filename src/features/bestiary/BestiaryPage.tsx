@@ -1,12 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { nextSort, SortableHeader } from '../../components/SortableHeader';
 import { Button, Card, PageHeader, Select, TextInput } from '../../components/ui';
 import { useUrlFilters } from '../../components/useUrlFilters';
 import { db } from '../../db';
 import { CR_VALUES, CREATURE_SORTS, creatureTypes, filterCreatures, formatHitDice, type CreatureFilter, type CreatureSort } from '../../logic';
 
-const SORT_LABELS: Record<CreatureSort, string> = { name: 'Sort by name', type: 'Sort by type', cr: 'Sort by CR' };
 const asSort = (v: string | null): CreatureSort => (CREATURE_SORTS.includes(v as CreatureSort) ? (v as CreatureSort) : 'name');
 import { confirmAndDelete, duplicateAndSave } from './actions';
 import { describeImport, downloadBestiary, importBestiaryFile } from './backup';
@@ -16,19 +16,26 @@ export function BestiaryPage() {
   const all = useLiveQuery(() => db.creatures.toArray());
   // Filters live in the URL so they survive going to a stat block and back.
   const { params, setFilter, clearFilters } = useUrlFilters();
+  const sort = asSort(params.get('sort'));
+  const desc = params.get('dir') === 'desc';
   const filter: CreatureFilter = {
     query: params.get('q') ?? '',
     type: params.get('type') ?? '',
     crMin: params.get('crMin') ?? '',
     crMax: params.get('crMax') ?? '',
-    sort: asSort(params.get('sort')),
   };
 
-  const { query, type, crMin, crMax, sort } = filter;
+  const { query, type, crMin, crMax } = filter;
   const shown = useMemo(
-    () => filterCreatures(all ?? [], { query, type, crMin, crMax, sort }),
-    [all, query, type, crMin, crMax, sort],
+    () => filterCreatures(all ?? [], { query, type, crMin, crMax, sort, desc }),
+    [all, query, type, crMin, crMax, sort, desc],
   );
+  const onSort = (column: CreatureSort) => {
+    const next = nextSort({ sort, desc }, column);
+    setFilter('sort', next.sort === 'name' ? '' : next.sort);
+    setFilter('dir', next.desc ? 'desc' : '');
+  };
+  const sortProps = { sort, desc, onSort };
   const types = useMemo(() => creatureTypes(all ?? []), [all]);
   const fileInput = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
@@ -119,15 +126,8 @@ export function BestiaryPage() {
             ))}
           </Select>
         </div>
-        <Select aria-label="Sort" value={filter.sort} onChange={(e) => setFilter('sort', asSort(e.target.value) === 'name' ? '' : e.target.value)}>
-          {CREATURE_SORTS.map((s) => (
-            <option key={s} value={s}>
-              {SORT_LABELS[s]}
-            </option>
-          ))}
-        </Select>
         {filtered && (
-          <Button variant="ghost" onClick={clearFilters}>
+          <Button variant="ghost" onClick={() => clearFilters(['sort', 'dir'])}>
             Clear
           </Button>
         )}
@@ -149,9 +149,9 @@ export function BestiaryPage() {
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase tracking-wider text-stone-500">
               <tr className="border-b border-stone-800">
-                <th className="px-4 py-2 font-medium">Name</th>
-                <th className="px-2 py-2 font-medium">Type</th>
-                <th className="px-2 py-2 text-right font-medium">CR</th>
+                <SortableHeader column="name" label="Name" className="px-4" {...sortProps} />
+                <SortableHeader column="type" label="Type" className="px-2" {...sortProps} />
+                <SortableHeader column="cr" label="CR" align="right" className="px-2" {...sortProps} />
                 <th className="px-2 py-2 text-right font-medium">XP</th>
                 <th className="px-2 py-2 text-right font-medium">AC</th>
                 <th className="px-2 py-2 text-right font-medium">HP</th>

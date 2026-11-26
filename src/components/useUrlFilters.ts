@@ -32,7 +32,18 @@ export function useUrlFilters() {
     [commit],
   );
 
-  const clearFilters = useCallback(() => commit(new URLSearchParams()), [commit]);
+  /** Clears every param except those named in `keep` (e.g. the sort order). */
+  const clearFilters = useCallback(
+    (keep: readonly string[] = []) => {
+      const next = new URLSearchParams();
+      for (const key of keep) {
+        const value = latest.current.get(key);
+        if (value) next.set(key, value);
+      }
+      commit(next);
+    },
+    [commit],
+  );
 
   return { params, setFilter, clearFilters };
 }

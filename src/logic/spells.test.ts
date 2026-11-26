@@ -141,4 +141,15 @@ describe('filterSpells sorting', () => {
   it('sorts by casting time, then level, then name', () => {
     expect(names('castingTime')).toEqual(['Shield', 'Misty Step', 'Fire Bolt', 'Fireball', 'Alarm']);
   });
+  it('sorts any column descending, breaking ties the usual way', () => {
+    const desc = (sort?: SpellSort) => filterSpells(list, { sort, desc: true }).map((s) => s.name);
+    expect(desc()).toEqual(['Fireball', 'Misty Step', 'Alarm', 'Shield', 'Fire Bolt']);
+    expect(desc('name')).toEqual(['Shield', 'Misty Step', 'Fireball', 'Fire Bolt', 'Alarm']);
+    expect(desc('school')).toEqual(['Fire Bolt', 'Fireball', 'Misty Step', 'Alarm', 'Shield']);
+    expect(desc('castingTime')).toEqual(['Alarm', 'Fire Bolt', 'Fireball', 'Misty Step', 'Shield']);
+  });
+  it('keeps unrecognised casting times last when sorting descending', () => {
+    const odd = [...list, spell('Wish', { level: 9, school: 'conjuration', castingTime: 'special' })];
+    expect(filterSpells(odd, { sort: 'castingTime', desc: true }).at(-1)?.name).toBe('Wish');
+  });
 });

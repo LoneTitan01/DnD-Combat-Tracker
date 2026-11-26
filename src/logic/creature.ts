@@ -172,6 +172,8 @@ export interface CreatureFilter {
   crMin?: ChallengeRating;
   crMax?: ChallengeRating;
   sort?: CreatureSort;
+  /** Reverse the sort column. Ties still break by name A–Z, and blank types stay last. */
+  desc?: boolean;
 }
 
 export const CREATURE_SORTS = ['name', 'type', 'cr'] as const;
@@ -188,18 +190,19 @@ export function filterCreatures(list: readonly CreatureTemplate[], f: CreatureFi
     const cr = crToNumber(t.cr);
     return !(cr < min || cr > max);
   });
+  const dir = f.desc ? -1 : 1;
   const byName = (a: CreatureTemplate, b: CreatureTemplate) => a.name.localeCompare(b.name);
   const byCr = (a: CreatureTemplate, b: CreatureTemplate) => crToNumber(a.cr) - crToNumber(b.cr);
   const typeOf = (t: CreatureTemplate) => t.type.trim().toLowerCase();
-  // Creatures with no type go last rather than first.
-  const byType = (a: CreatureTemplate, b: CreatureTemplate) =>
-    Number(!typeOf(a)) - Number(!typeOf(b)) || typeOf(a).localeCompare(typeOf(b));
+  // Creatures with no type go last rather than first, whichever way the column is sorted.
+  const typeBlankLast = (a: CreatureTemplate, b: CreatureTemplate) => Number(!typeOf(a)) - Number(!typeOf(b));
   const compare =
     f.sort === 'cr'
-      ? (a: CreatureTemplate, b: CreatureTemplate) => byCr(a, b) || byName(a, b)
+      ? (a: CreatureTemplate, b: CreatureTemplate) => dir * byCr(a, b) || byName(a, b)
       : f.sort === 'type'
-        ? (a: CreatureTemplate, b: CreatureTemplate) => byType(a, b) || byCr(a, b) || byName(a, b)
-        : byName;
+        ? (a: CreatureTemplate, b: CreatureTemplate) =>
+            typeBlankLast(a, b) || dir * typeOf(a).localeCompare(typeOf(b)) || byCr(a, b) || byName(a, b)
+        : (a: CreatureTemplate, b: CreatureTemplate) => dir * byName(a, b);
   return out.sort(compare);
 }
 
