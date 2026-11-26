@@ -8,8 +8,15 @@ import {
   locationTree,
   parentOptions,
   planLocationDelete,
+  needsRestock,
+  parseStock,
   planLocationSave,
+  restockShop,
+  sellOne,
+  shopItemFor,
+  shopOnlyItem,
   siblingsOf,
+  stockLabel,
   validateLocation,
 } from './locations';
 
@@ -101,6 +108,60 @@ describe('shop items', () => {
 
   it('leaves no shop when nothing is for sale', () => {
     expect(cleanLocation({ ...shop, shop: [item('')] })).not.toHaveProperty('shop');
+  });
+
+  it('starts items from the item list at their list price, and keeps them on save', () => {
+    const row = shopItemFor({ id: 'sword', name: 'Longsword', cost: '15 gp' });
+    expect(row).toMatchObject({ itemId: 'sword', name: 'Longsword', cost: '15 gp', description: '' });
+    // A listed item stays even with its price cleared: it's for sale, price to be haggled.
+    expect(cleanLocation({ ...shop, shop: [{ ...row, name: '', cost: '' }] }).shop).toHaveLength(1);
+  });
+
+  it('keeps whole, non-negative stock counts and drops the rest', () => {
+    const rope = { ...item('Rope'), stock: 2.7, maxStock: -1 };
+    expect(cleanLocation({ ...shop, shop: [rope] }).shop).toEqual([{ id: rope.id, name: 'Rope', cost: '', description: '', stock: 2 }]);
+    // A row with only a stock count isn't blank, so it needs a name.
+    expect(validateLocation({ ...shop, shop: [{ ...item(''), stock: 3 }] }, all)).toContain('Give every shop item a name.');
+  });
+
+  it('reads stock boxes as whole numbers from 0', () => {
+    expect(parseStock('')).toBeUndefined();
+    expect(parseStock(' 4 ')).toBe(4);
+    expect(parseStock('2.9')).toBe(2);
+    expect(parseStock('-3')).toBe(0);
+    expect(parseStock('lots')).toBeUndefined();
+  });
+
+  it('labels stock and restocks items with a maximum', () => {
+    expect(stockLabel({})).toBe('');
+    expect(stockLabel({ stock: 3 })).toBe('3');
+    expect(stockLabel({ stock: 1, maxStock: 5 })).toBe('1 / 5');
+    expect(stockLabel({ maxStock: 5 })).toBe('– / 5');
+    const rows = [
+      { ...item('Rope'), stock: 1, maxStock: 5 },
+      { ...item('Potion'), maxStock: 2 },
+      { ...item('Sword'), stock: 1 },
+      item('Map'),
+    ];
+    expect(needsRestock(rows)).toBe(true);
+    const restocked = restockShop(rows);
+    expect(restocked.map((r) => r.stock)).toEqual([5, 2, 1, undefined]);
+    expect(needsRestock(restocked)).toBe(false);
+    expect(needsRestock([rows[2]!, rows[3]!])).toBe(false);
+  });
+
+  it('makes shop-only items, not tied to the item list', () => {
+    const scroll = shopOnlyItem('Scroll of Mending');
+    expect(scroll).toEqual({ id: scroll.id, name: 'Scroll of Mending', cost: '', description: '' });
+    expect(scroll).not.toHaveProperty('itemId');
+  });
+
+  it('sells one at a time, never below 0, and only counted items', () => {
+    const rows = [{ ...item('Rope'), stock: 1 }, item('Map')];
+    const once = sellOne(rows, rows[0]!.id);
+    expect(once[0]?.stock).toBe(0);
+    expect(sellOne(once, rows[0]!.id)[0]?.stock).toBe(0);
+    expect(sellOne(rows, rows[1]!.id)[1]).toBe(rows[1]);
   });
 
   it('needs a name on every filled-in item', () => {

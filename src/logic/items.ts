@@ -135,6 +135,12 @@ export function itemSubtitle(i: Item): string {
   return m ? `${itemType(i)}, ${rarityLine(m)}` : itemType(i);
 }
 
+/** The item with this name, ignoring case and surrounding spaces. */
+export function findItemByName<T extends Pick<Item, 'name'>>(list: readonly T[], name: string): T | undefined {
+  const n = name.trim().toLowerCase();
+  return n ? list.find((i) => i.name.trim().toLowerCase() === n) : undefined;
+}
+
 /** "1d8 slashing" ("1d8 + 1 slashing" with a +1 bonus), or '' when the weapon deals no damage. */
 export function weaponDamage(w: WeaponDetails, bonus = 0): string {
   const dice = w.damage.trim();

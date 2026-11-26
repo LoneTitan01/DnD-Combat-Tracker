@@ -376,12 +376,22 @@ export interface Location {
   updatedAt: number;
 }
 
-/** One line of a location's shop table. Cost is free text ("50 gp", "a favour"). */
+/**
+ * One line of a location's shop table. Cost is free text ("50 gp", "a favour"); it starts as the
+ * item's list price and can be changed per shop.
+ */
 export interface ShopItem {
   id: ID;
+  /** The item from the item list. Missing on rows typed in before shops used the item list. */
+  itemId?: ID;
+  /** The item's name when it was added, shown if the item is later deleted from the item list. */
   name: string;
   cost: string;
   description: string;
+  /** How many are on the shelf now. Missing when the shop doesn't count them. */
+  stock?: number;
+  /** How many a restock fills the shelf back up to. Missing when the item isn't restocked. */
+  maxStock?: number;
 }
 
 /** A non-player character in one campaign. */
