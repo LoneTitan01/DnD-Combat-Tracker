@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
-import { Button, Card, Field, PageHeader, Select, TextInput } from '../../components/ui';
+import { Button, Card, Field, PageHeader, Select, TextArea, TextInput } from '../../components/ui';
 import { useUrlFilters } from '../../components/useUrlFilters';
 import { deleteNpc, saveNpc } from '../../db';
 import { filterNpcs, findNpcByName, newId, placeOptions } from '../../logic';
@@ -23,9 +23,12 @@ function PlaceSelect({ value, places, onChange, label }: { value: string; places
   );
 }
 
-function NpcRow({ npc, places, duplicate }: { npc: Npc; places: Place[]; duplicate: boolean }) {
+function NpcRow({ npc, places, duplicate, startOpen }: { npc: Npc; places: Place[]; duplicate: boolean; startOpen: boolean }) {
   const [name, setName] = useState(npc.name);
+  const [notes, setNotes] = useState(npc.notes ?? '');
+  const [open, setOpen] = useState(startOpen);
   const home = places.find((p) => p.id === npc.locationId);
+  const saved = (npc.notes ?? '').trim();
 
   /** Commits on blur: a blank name snaps back to what's saved. */
   const commitName = () => {
@@ -34,47 +37,73 @@ function NpcRow({ npc, places, duplicate }: { npc: Npc; places: Place[]; duplica
     if (n && n !== npc.name) void saveNpc({ ...npc, name: n });
   };
 
+  /** Commits on blur, so typing doesn't save on every keystroke. */
+  const commitNotes = () => {
+    if (notes !== (npc.notes ?? '')) void saveNpc({ ...npc, notes });
+  };
+
   return (
-    <tr className="border-t border-stone-800">
-      <td className="py-2 pr-2 align-top">
-        <TextInput
-          aria-label={`Name for ${npc.name}`}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={commitName}
-          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          className={`w-full min-w-32 ${duplicate ? 'border-amber-500' : ''}`}
-        />
-        {duplicate && <p className="mt-1 text-xs text-amber-400">Another NPC has this name.</p>}
-      </td>
-      <td className="py-2 pr-2 align-top">
-        <PlaceSelect
-          label={`Location for ${npc.name}`}
-          value={npc.locationId ?? ''}
-          places={places}
-          onChange={(id) => void saveNpc({ ...npc, locationId: id || undefined })}
-        />
-      </td>
-      <td className="whitespace-nowrap py-2 text-right align-top">
-        {home && (
-          <Link
-            to={locationPath(home.id)}
-            aria-label={`Go to ${home.label}`}
-            className="mr-1 inline-block rounded-md px-3 py-1.5 text-sm text-amber-400 hover:bg-stone-800"
+    <>
+      <tr className="border-t border-stone-800">
+        <td className="py-2 pr-2 align-top">
+          <TextInput
+            aria-label={`Name for ${npc.name}`}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            className={`w-full min-w-32 ${duplicate ? 'border-amber-500' : ''}`}
+          />
+          {duplicate && <p className="mt-1 text-xs text-amber-400">Another NPC has this name.</p>}
+          {!open && saved && <p className="mt-1 max-w-xs truncate text-xs text-stone-500">{saved.split('\n')[0]}</p>}
+        </td>
+        <td className="py-2 pr-2 align-top">
+          <PlaceSelect
+            label={`Location for ${npc.name}`}
+            value={npc.locationId ?? ''}
+            places={places}
+            onChange={(id) => void saveNpc({ ...npc, locationId: id || undefined })}
+          />
+        </td>
+        <td className="whitespace-nowrap py-2 text-right align-top">
+          <Button variant="ghost" aria-expanded={open} aria-label={`Notes for ${npc.name}`} onClick={() => setOpen(!open)}>
+            {open ? 'Hide notes' : saved ? 'Notes' : 'Add notes'}
+          </Button>
+          {home && (
+            <Link
+              to={locationPath(home.id)}
+              aria-label={`Go to ${home.label}`}
+              className="mr-1 inline-block rounded-md px-3 py-1.5 text-sm text-amber-400 hover:bg-stone-800"
+            >
+              View place
+            </Link>
+          )}
+          <Button
+            variant="ghost"
+            onClick={() => {
+              if (confirm(`Delete ${npc.name}?`)) void deleteNpc(npc.id);
+            }}
           >
-            View place
-          </Link>
-        )}
-        <Button
-          variant="ghost"
-          onClick={() => {
-            if (confirm(`Delete ${npc.name}?`)) void deleteNpc(npc.id);
-          }}
-        >
-          Delete
-        </Button>
-      </td>
-    </tr>
+            Delete
+          </Button>
+        </td>
+      </tr>
+      {open && (
+        <tr>
+          <td colSpan={3} className="pb-3">
+            <TextArea
+              aria-label={`Notes text for ${npc.name}`}
+              rows={4}
+              value={notes}
+              placeholder="Who they are, what they want, what they know, how they talk…"
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={commitNotes}
+              className="w-full"
+            />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -144,7 +173,7 @@ export function NpcsPage() {
             <TextInput
               type="search"
               aria-label="Search NPCs"
-              placeholder="Search by name or location"
+              placeholder="Search by name, location or notes"
               value={query}
               onChange={(e) => setFilter('q', e.target.value)}
               className="w-full sm:w-72"
@@ -166,7 +195,14 @@ export function NpcsPage() {
               </thead>
               <tbody>
                 {shown.map((n) => (
-                  <NpcRow key={n.id} npc={n} places={places} duplicate={(dupes.get(n.name.toLowerCase()) ?? 0) > 1} />
+                  <NpcRow
+                    key={n.id}
+                    npc={n}
+                    places={places}
+                    duplicate={(dupes.get(n.name.toLowerCase()) ?? 0) > 1}
+                    // Following an NPC's link from a location lands on just them, so show their notes.
+                    startOpen={!!query.trim() && shown.length === 1}
+                  />
                 ))}
               </tbody>
             </table>

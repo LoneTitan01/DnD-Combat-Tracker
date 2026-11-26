@@ -289,6 +289,8 @@ export interface Npc {
   name: string;
   /** The location the NPC lives in. Unset when it's unknown. */
   locationId?: ID;
+  /** DM notes: who they are, what they want, what they know. Missing on NPCs saved before notes existed. */
+  notes?: string;
   /** Set on every save; used by sync to pick the newest copy. */
   updatedAt?: number;
 }
