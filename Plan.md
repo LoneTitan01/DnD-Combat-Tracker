@@ -1,4 +1,4 @@
-# DM Combat Tracker — Implementation Plan
+# DM Helper — Implementation Plan
 
 > Nov 12, 2026 · @Nathan Roalkvam · updated Nov 13, 2026
 

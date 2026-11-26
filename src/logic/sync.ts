@@ -65,7 +65,7 @@ export function sameSyncData(a: SyncData, b: SyncData): boolean {
 /** Checks a file downloaded from Drive. Throws a readable error for anything this version can't use. */
 export function parseSyncFile(raw: unknown): SyncFile {
   const f = raw as Partial<SyncFile> | null;
-  if (!f || typeof f !== 'object' || f.app !== 'dm-combat-tracker') throw new Error('The file in Google Drive isn’t a DM Combat Tracker sync file.');
+  if (!f || typeof f !== 'object' || f.app !== 'dm-combat-tracker') throw new Error('The file in Google Drive isn’t a DM Helper sync file.');
   if (typeof f.format !== 'number' || f.format > 1) {
     throw new Error('The data in Google Drive was saved by a newer version of the app. Reload this page to update it.');
   }

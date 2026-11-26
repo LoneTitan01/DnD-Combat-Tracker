@@ -1,4 +1,4 @@
-# DM Combat Tracker
+# DM Helper
 
 A local-first web app for preparing D&D 5e encounters and running them at the table. There is no backend: data lives in IndexedDB (players' devices connect to the DM's browser peer-to-peer), and the app works offline as a PWA. See [Plan.md](Plan.md) for the full spec.
 

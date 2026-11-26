@@ -87,7 +87,7 @@ describe('parseSyncFile', () => {
   });
 
   it('rejects other files and newer formats', () => {
-    expect(() => parseSyncFile({ hello: 1 })).toThrow(/isn’t a DM Combat Tracker sync file/);
+    expect(() => parseSyncFile({ hello: 1 })).toThrow(/isn’t a DM Helper sync file/);
     expect(() => parseSyncFile(null)).toThrow();
     expect(() => parseSyncFile({ app: 'dm-combat-tracker', format: 2 })).toThrow(/newer version/);
   });

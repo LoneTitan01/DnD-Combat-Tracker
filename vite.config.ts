@@ -14,8 +14,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'DM Combat Tracker',
-        short_name: 'Combat',
+        name: 'DM Helper',
+        short_name: 'DM Helper',
         description: 'Prepare encounters and run combat at the table.',
         theme_color: '#1c1917',
         background_color: '#1c1917',
